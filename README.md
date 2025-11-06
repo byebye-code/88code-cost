@@ -1,137 +1,284 @@
 # 88Code Cost
 
 <div align="center">
-  <p>智能额度监控工具，实时追踪套餐使用情况并自动重置。</p>
+  <img src="assets/icon128.png" alt="88Code Cost Logo" width="128" height="128">
+  <p><strong>智能额度监控工具，让您的 88Code 套餐使用一目了然</strong></p>
+  <p>实时追踪套餐使用情况 · 智能自动重置 · 深色模式支持</p>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)
-![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
 ![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat&logo=google-chrome&logoColor=white)
+![Version](https://img.shields.io/badge/version-1.0.0-green.svg)
 
 </div>
 
-## ✨ 功能特性
+---
 
-### 📊 核心功能
+## 主要功能
 
-- 📈 **实时监控**: 查看总体使用情况和各套餐额度
-- 💰 **套餐跟踪**: 可视化显示每个套餐的使用进度
-- 🤖 **智能重置**: 18:55/23:55 自动重置，最大化利用重置窗口
-- 🔄 **重置倒计时**: 自动计算并显示套餐重置时间
-- 🔒 **安全认证**: 自动从 88code.org 读取认证 Token
+### 实时监控
+- 一键查看所有套餐的使用情况
+- 可视化进度条显示剩余额度
+- 自动计算重置倒计时
 
-### 💎 用户体验
+### 智能重置
+- **18:55** 智能重置策略：优先重置未满额的套餐，预留最后一次给晚间兜底
+- **23:55** 兜底重置：确保所有套餐额度不浪费
+- 浏览器后台自动执行，无需手动操作
 
-- 🎨 **现代 UI**: 基于 Tailwind CSS 的现代化界面设计
-- ⚡ **轻量级**: 基于 Plasmo 框架，高性能低内存占用
-- 📱 **响应式**: 460x600px 的精致弹窗设计
-- 🔄 **即时刷新**: 支持手动刷新获取最新数据
+### 极致体验
+- 现代化界面设计，支持深色模式
+- 轻量级，低内存占用
+- 自动刷新，数据实时同步
+- 安全认证，数据本地存储
 
-## 🚀 快速开始
+---
 
-### 开发环境设置
+## 安装方式
 
-```bash
-# 安装依赖
-pnpm install
+### 方式一：Chrome 网上应用店（推荐）
 
-# 启动开发服务器
-pnpm dev
-```
+> 即将上架 Chrome Web Store，敬请期待
 
-开发模式下，在浏览器中加载 `build/chrome-mv3-dev` 目录。
+### 方式二：手动安装
 
-### 构建生产版本
+1. **下载扩展**
+   - 从 [Releases](../../releases) 页面下载最新版本的 `.zip` 文件
+   - 解压到本地文件夹
 
-```bash
-pnpm build
-```
+2. **安装到浏览器**
+   - 打开 Chrome 浏览器
+   - 访问 `chrome://extensions/`
+   - 开启右上角的 **"开发者模式"**
+   - 点击 **"加载已解压的扩展程序"**
+   - 选择解压后的文件夹
 
-构建完成后，可以在 `build/` 目录中找到生产版本。
+3. **完成**
+   - 扩展图标出现在浏览器工具栏即表示安装成功
 
-## 🛠️ 技术栈
+---
 
-- **框架**: [Plasmo](https://docs.plasmo.com/) - 现代浏览器扩展开发框架
-- **UI 库**: React 18 + TypeScript
-- **样式**: Tailwind CSS
-- **状态管理**: Plasmo Storage API
-- **构建工具**: Plasmo CLI
-- **代码质量**: ESLint + Prettier
+## 使用指南
 
-## 📖 使用指南
+### 首次使用
 
-### 基础使用
+1. **登录 88Code**
+   - 访问 [88code.org](https://www.88code.org)
+   - 登录您的账号
 
-1. **安装扩展**: 在浏览器中加载构建好的扩展
-2. **访问网站**: 访问 [88code.org](https://www.88code.org) 并登录
-3. **查看监控**: 点击扩展图标即可查看套餐使用情况
+2. **打开扩展**
+   - 点击浏览器工具栏的扩展图标
+   - 扩展会自动读取您的登录信息
 
-### API 接口
+3. **查看数据**
+   - 总览区域显示所有套餐的汇总数据
+   - 下方列表显示每个套餐的详细信息
 
-扩展对接 88Code Admin API，自动添加 `Authorization: Bearer {token}` 认证头部。
+### 核心功能使用
 
-## 📁 项目结构
+#### 查看套餐详情
+每个套餐卡片包含：
+- 套餐名称和状态
+- 使用进度（剩余额度/总额度）
+- 可视化进度条
+- 重置倒计时
+- 可重置次数
 
-```
-88code-cost/
-├── components/          # React 组件
-│   ├── SubscriptionCard.tsx
-│   ├── UsageDisplay.tsx
-│   └── RefreshButton.tsx
-├── hooks/              # React Hooks
-│   ├── useAuth.ts
-│   ├── useSubscriptions.ts
-│   └── useDashboard.ts
-├── lib/                # 工具库
-│   ├── api/           # API 客户端
-│   └── storage/       # 存储管理
-├── types/             # TypeScript 类型定义
-├── popup.tsx          # 主弹窗组件
-├── package.json       # 项目配置
-└── README.md         # 项目文档
-```
+#### 手动刷新
+- 点击右上角的刷新按钮
+- 立即获取最新数据
 
-## 🔧 开发说明
+#### 启用智能重置
+1. 点击右上角的设置按钮
+2. 开启 **"启用定时重置"**
+3. 系统将在 18:55 和 23:55 自动重置套餐
 
-### 认证机制
+#### 切换主题
+- 点击主题切换按钮
+- 可选：自动跟随系统、浅色模式、深色模式
 
-扩展会自动从 88code.org 网站的 storage 中读取 `authToken`，并将其作为 API 请求的认证头：
+---
 
-```typescript
-Authorization: Bearer {authToken}
-```
+## 智能重置策略
 
-### 数据刷新
+### 为什么选择 18:55 和 23:55？
 
-- 扩展打开时自动获取数据
-- 可通过刷新按钮手动更新
-- 所有 API 响应都会打印到控制台方便调试
+88Code 平台规定套餐重置需要间隔 **5 小时**。我们精心设计了两个重置时间点：
 
-### 调试
+#### 18:55 - 智能策略
+- **目标**：最大化利用白天的额度
+- **逻辑**：
+  - 如果套餐剩余重置次数 > 1 且未满额 → 立即重置
+  - 如果套餐剩余重置次数 = 1 → 保留给晚间使用
+  - 满额套餐不重置，节省重置次数
 
-开发模式下会自动启用 Eruda 调试工具，可以在扩展中查看控制台输出和网络请求。
+#### 23:55 - 兜底策略
+- **目标**：确保当天额度不浪费
+- **逻辑**：
+  - 重置所有还有重置次数的套餐
+  - 避免额度浪费
 
-## 📝 更新日志
+### 安全机制
+- 随机延迟 0-15 秒，分散服务器压力
+- 浏览器后台自动执行
+- 无需打开扩展
+- 不会影响浏览器性能
 
-### v1.0.0 (2025-11-05)
+---
 
-- 🎉 **首个版本发布**
-- 📊 **基础功能**: 套餐监控、使用情况展示
-- 🔄 **重置倒计时**: 自动计算套餐重置时间
-- 🎨 **现代界面**: 基于 Tailwind CSS 的美观界面
+## 常见问题
 
-## 📄 许可证
+### 认证相关
 
-本项目基于 [MIT License](LICENSE) 开源。
+<details>
+<summary><strong>Q: 为什么显示"未登录"？</strong></summary>
 
-## 🔗 相关链接
+**A:** 请确保：
+1. 已在 [88code.org](https://www.88code.org) 登录
+2. 刷新扩展或重新打开
+3. 如果问题持续，请尝试退出重新登录 88Code 网站
+</details>
+
+<details>
+<summary><strong>Q: 扩展如何获取我的登录信息？</strong></summary>
+
+**A:** 扩展会自动从 88code.org 网站读取您的认证信息（Token），所有数据均存储在本地，不会上传到任何第三方服务器。
+</details>
+
+### 数据相关
+
+<details>
+<summary><strong>Q: 数据多久更新一次？</strong></summary>
+
+**A:**
+- 打开扩展时自动获取最新数据
+- 支持手动刷新（点击右上角刷新按钮）
+- 可在设置中调整自动刷新间隔
+</details>
+
+<details>
+<summary><strong>Q: 为什么有些套餐不显示？</strong></summary>
+
+**A:** 扩展仅显示 **"活跃中"** 状态的套餐。已过期或暂停的套餐不会显示。
+</details>
+
+### 智能重置相关
+
+<details>
+<summary><strong>Q: 如何知道智能重置是否成功？</strong></summary>
+
+**A:**
+- 打开扩展，查看套餐的"可重置次数"
+- 如果次数减少，说明重置已执行
+- 查看"重置倒计时"是否更新
+</details>
+
+<details>
+<summary><strong>Q: 关闭浏览器后还会自动重置吗？</strong></summary>
+
+**A:** 不会。智能重置需要浏览器在后台运行。建议：
+- 保持浏览器常驻后台
+- 或在重置时间前确保浏览器处于运行状态
+</details>
+
+<details>
+<summary><strong>Q: 可以自定义重置时间吗？</strong></summary>
+
+**A:** 当前版本固定为 18:55 和 23:55。后续版本可能会添加自定义时间功能。
+</details>
+
+### 界面相关
+
+<details>
+<summary><strong>Q: 为什么扩展图标是灰色的？</strong></summary>
+
+**A:** 这是正常现象：
+- **彩色图标**：在 88code.org 页面上
+- **灰色图标**：在其他网站上
+- 这是 Chrome 扩展的安全机制
+
+灰色状态下仍然可以正常使用扩展功能。
+</details>
+
+<details>
+<summary><strong>Q: 如何切换深色模式？</strong></summary>
+
+**A:** 点击扩展右上角的主题切换按钮，可选择：
+- 自动跟随 88Code 网站主题
+- 浅色模式
+- 深色模式
+</details>
+
+### 问题反馈
+
+<details>
+<summary><strong>Q: 遇到问题如何反馈？</strong></summary>
+
+**A:** 您可以通过以下方式反馈：
+1. 在 [GitHub Issues](../../issues) 提交问题
+2. 提供问题截图和浏览器控制台日志（右键扩展 → 检查）
+3. 说明复现步骤
+</details>
+
+---
+
+## 隐私与安全
+
+- **本地存储**：所有数据存储在本地，不上传到任何服务器
+- **安全认证**：自动读取 88Code 官网的认证信息
+- **最小权限**：仅请求必要的浏览器权限
+- **开源透明**：完整源代码开放在 GitHub
+
+---
+
+## 支持项目
+
+如果这个扩展对您有帮助，请考虑：
+
+- 在 GitHub 上给我们一个 Star
+- 向朋友推荐这个扩展
+- 提交问题和建议
+- 贡献代码和创意
+
+---
+
+## 更新日志
+
+### v1.0.0 (2025-11-06)
+
+#### 新功能
+- 实时套餐监控
+- 智能定时重置（18:55/23:55）
+- 深色模式支持
+- 自动/手动刷新
+- 重置倒计时
+
+#### 用户体验
+- 现代化 UI 设计
+- 骨架屏加载优化
+- 友好的错误提示
+- 响应式布局
+
+---
+
+## 相关链接
 
 - [88Code 官网](https://www.88code.org)
-- [Plasmo 文档](https://docs.plasmo.com/)
-- [Chrome Extension 开发指南](https://developer.chrome.com/docs/extensions/)
+- [问题反馈](../../issues)
+- [更新日志](../../releases)
+
+---
+
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。
 
 ---
 
 <div align="center">
-  <p>如果这个项目对您有帮助，请给我们一个 ⭐️</p>
+  <p>由 88Code 团队打造</p>
+  <p>
+    <a href="https://www.88code.org">官网</a> ·
+    <a href="../../issues">反馈问题</a> ·
+    <a href="../../releases">下载更新</a>
+  </p>
 </div>
