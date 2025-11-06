@@ -26,6 +26,9 @@ async function createAuthHeaders(): Promise<HeadersInit> {
 
   if (authToken) {
     headers["authorization"] = `Bearer ${authToken}`
+    console.log("[API] 使用 token:", authToken.substring(0, 20) + "...")
+  } else {
+    console.warn("[API] ⚠️ 没有找到 authToken")
   }
 
   return headers

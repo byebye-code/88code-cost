@@ -8,6 +8,11 @@ import React, { useState, useEffect } from "react"
 import type { Subscription } from "~/types"
 import { resetCredits, toggleAutoReset } from "~/lib/api/client"
 import { getResetCountdown } from "~/lib/utils/format"
+import { Card, CardContent, CardHeader } from "~/components/ui/card"
+import { Badge } from "~/components/ui/badge"
+import { Button } from "~/components/ui/button"
+import { Switch } from "~/components/ui/switch"
+import { Progress } from "~/components/ui/progress"
 
 interface SubscriptionCardProps {
   subscription: Subscription
@@ -130,16 +135,16 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
     return `剩余 ${hours}小时`
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string): "success" | "destructive" | "secondary" | "info" => {
     switch (status) {
       case "活跃中":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+        return "success"
       case "已过期":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+        return "destructive"
       case "已禁用":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+        return "secondary"
       default:
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+        return "info"
     }
   }
 
@@ -174,130 +179,109 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
   }
 
   return (
-    <div className="group rounded-lg border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 shadow-sm transition-all duration-300 hover:shadow-md dark:border-gray-700 dark:from-gray-800 dark:to-gray-850">
-      {/* 精简的头部 */}
-      <div className="mb-3 flex items-start justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-            {subscription.subscriptionPlanName}
-          </h3>
-          <div className="mt-0.5 flex items-center space-x-2">
-            <span
-              className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(
-                subscription.subscriptionStatus
-              )}`}>
-              {subscription.subscriptionStatus}
-            </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {subscription.billingCycleDesc}
-            </span>
+    <Card className="group transition-all duration-300 hover:shadow-md">
+      <CardHeader className="p-4 pb-3">
+        {/* 精简的头部 */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-base font-semibold">
+              {subscription.subscriptionPlanName}
+            </h3>
+            <div className="mt-1.5 flex items-center gap-2">
+              <Badge variant={getStatusVariant(subscription.subscriptionStatus)}>
+                {subscription.subscriptionStatus}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {subscription.billingCycleDesc}
+              </span>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {getCountdown(subscription.endDate)}
           </div>
         </div>
-        <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>{getCountdown(subscription.endDate)}</span>
-        </div>
-      </div>
+      </CardHeader>
 
-      {/* 单行额度展示 */}
-      <div className="mb-3 rounded-md bg-white/50 p-2 dark:bg-gray-700/30">
+      <CardContent className="px-4 pb-4 pt-0 space-y-3">
+        {/* 单行额度展示 - 无边框 */}
         <div className="flex items-baseline justify-between">
           {/* 重置次数显示 */}
           {subscription.resetTimes > 0 && (
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <Badge variant="outline" className="text-xs">
               ×{subscription.resetTimes}
-            </span>
+            </Badge>
           )}
-          <span className={`text-sm font-semibold text-gray-900 dark:text-white ${subscription.resetTimes === 0 ? 'ml-auto' : ''}`}>
-            <span className="text-blue-600 dark:text-blue-400">${currentCredits.toFixed(2)}</span>
-            <span className="mx-1 text-gray-400">/</span>
-            <span className="text-gray-700 dark:text-gray-300">${creditLimit.toFixed(2)}</span>
+          <span className={`text-sm font-semibold ${subscription.resetTimes === 0 ? 'ml-auto' : ''}`}>
+            <span className="text-primary">${currentCredits.toFixed(2)}</span>
+            <span className="mx-1 text-muted-foreground">/</span>
+            <span className="text-foreground">${creditLimit.toFixed(2)}</span>
           </span>
         </div>
-      </div>
 
-      {/* 剩余额度和进度条 - 紧凑版 */}
-      <div className="mb-2">
-        <div className="mb-1 flex justify-between text-xs">
-          <span className="text-gray-500 dark:text-gray-400">剩余额度</span>
-          <span className={`font-semibold ${getTextColor(Number(remainingPercentage))}`}>
-            {remainingPercentage}%
-          </span>
-        </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-          <div
-            className={`h-full transition-all duration-500 ease-in-out ${getProgressGradient(Number(remainingPercentage))}`}
-            style={{ width: `${remainingPercentage}%` }}
+        {/* 剩余额度和进度条 */}
+        <div>
+          <div className="mb-2 flex justify-between text-xs">
+            <span className="text-muted-foreground">剩余额度</span>
+            <span className={`font-semibold ${getTextColor(Number(remainingPercentage))}`}>
+              {remainingPercentage}%
+            </span>
+          </div>
+          <Progress
+            value={Number(remainingPercentage)}
+            max={100}
+            indicatorClassName={getProgressGradient(Number(remainingPercentage))}
+            className="h-2"
           />
         </div>
-      </div>
 
-      {/* 操作按钮区域 - 紧凑版 */}
-      <div className="space-y-2 border-t border-gray-200 pt-2 dark:border-gray-700">
-        {/* 错误提示 */}
-        {error && (
-          <div className="rounded-md bg-red-50 p-1.5 dark:bg-red-900/20">
-            <p className="text-xs text-red-800 dark:text-red-200">{error}</p>
-          </div>
-        )}
-
-        {/* 自动重置开关 - 精简版 */}
-        <div className="flex items-center justify-between rounded-md bg-white/50 p-2 dark:bg-gray-700/30">
-          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-            额度为0自动重置
-          </span>
-          <button
-            onClick={handleToggleAutoReset}
-            disabled={isTogglingAutoReset}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 ${
-              autoResetEnabled
-                ? "bg-gradient-to-r from-blue-500 to-blue-600"
-                : "bg-gray-200 dark:bg-gray-600"
-            }`}
-            aria-label="切换自动重置">
-            <span
-              className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
-                autoResetEnabled ? "translate-x-5" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* 手动重置按钮 - 带倒计时和重置次数 */}
-        <button
-          onClick={handleManualReset}
-          disabled={isResetting || !resetCountdown.canReset || currentCredits === creditLimit}
-          className={`flex w-full items-center justify-center space-x-1.5 rounded-md px-3 py-2 text-xs font-medium text-white shadow-sm transition-all duration-200 active:scale-95 ${
-            resetCountdown.canReset && currentCredits !== creditLimit
-              ? "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 hover:shadow-md dark:from-purple-600 dark:to-purple-700"
-              : "cursor-not-allowed bg-gray-400 dark:bg-gray-600"
-          } disabled:opacity-50`}>
-          {isResetting ? (
-            <>
-              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              <span>重置中...</span>
-            </>
-          ) : (
-            <>
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>
-                {currentCredits === creditLimit
-                  ? "额度已满"
-                  : resetCountdown.canReset
-                    ? "手动重置"
-                    : `重置冷却: ${resetCountdown.remainingTime}`}
-              </span>
-            </>
+        {/* 操作按钮区域 - 紧凑单行布局 */}
+        <div className="space-y-2 border-t pt-2">
+          {/* 错误提示 */}
+          {error && (
+            <div className="rounded-md bg-destructive/10 p-1.5">
+              <p className="text-xs text-destructive">{error}</p>
+            </div>
           )}
-        </button>
-      </div>
-    </div>
+
+          {/* 自动重置和手动重置 - 单行 */}
+          <div className="flex items-center gap-2">
+            {/* 自动重置开关 */}
+            <div className="flex flex-1 items-center justify-between rounded-md bg-muted/50 px-2 py-1.5">
+              <span className="text-xs font-medium">
+                自动重置
+              </span>
+              <Switch
+                checked={autoResetEnabled}
+                onCheckedChange={handleToggleAutoReset}
+                disabled={isTogglingAutoReset}
+                aria-label="切换自动重置"
+              />
+            </div>
+
+            {/* 手动重置按钮 - 紧凑版 */}
+            <Button
+              onClick={handleManualReset}
+              disabled={isResetting || !resetCountdown.canReset || currentCredits === creditLimit || subscription.resetTimes === 0}
+              size="sm"
+              variant={resetCountdown.canReset && currentCredits !== creditLimit && subscription.resetTimes > 0 ? "default" : "secondary"}
+              className="flex-1 text-xs">
+              {isResetting ? (
+                <span>重置中...</span>
+              ) : (
+                <span>
+                  {subscription.resetTimes === 0
+                    ? "无重置次数"
+                    : currentCredits === creditLimit
+                      ? "额度已满"
+                      : resetCountdown.canReset
+                        ? "手动重置"
+                        : `${resetCountdown.remainingTime}`}
+                </span>
+              )}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

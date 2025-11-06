@@ -5,6 +5,8 @@
 
 import type { PlasmoCSConfig } from "plasmo"
 
+import { browserAPI } from "~lib/browser-api"
+
 export const config: PlasmoCSConfig = {
   matches: ["https://www.88code.org/*", "https://88code.org/*"],
   run_at: "document_start"
@@ -40,7 +42,7 @@ function get88CodeTheme(): string | null {
  */
 async function syncThemeToExtension(theme: string) {
   try {
-    await chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme })
+    await browserAPI.storage.local.set({ [THEME_STORAGE_KEY]: theme })
     console.log(`[ThemeSync] 主题已同步: ${theme}`)
   } catch (error) {
     console.error("[ThemeSync] 同步主题失败:", error)

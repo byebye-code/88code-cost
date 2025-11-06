@@ -4,6 +4,8 @@
  */
 
 import { Storage } from "@plasmohq/storage"
+
+import { browserAPI } from "~/lib/browser-api"
 import type { AppSettings, Subscription } from "~/types"
 import { DEFAULT_SETTINGS } from "~/types"
 import { resetCredits } from "~/lib/api/client"
@@ -40,7 +42,7 @@ async function getSettings(): Promise<AppSettings> {
 async function getAuthToken(): Promise<string | null> {
   try {
     // 从 cookies 中获取 token
-    const cookies = await chrome.cookies.getAll({
+    const cookies = await browserAPI.cookies.getAll({
       domain: "88code.org"
     })
     const tokenCookie = cookies.find(c => c.name === "88code-token" || c.name === "token")
@@ -273,7 +275,7 @@ function startScheduledResetService() {
 startScheduledResetService()
 
 // 监听扩展安装/更新事件
-chrome.runtime.onInstalled.addListener((details) => {
+browserAPI.runtime.onInstalled.addListener((details) => {
   console.log("[Background] Extension installed/updated:", details.reason)
   if (details.reason === "install") {
     console.log("[Background] First installation detected")

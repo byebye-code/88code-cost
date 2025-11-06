@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(tree:*)",
-      "Bash(pnpm dev)"
+      "Bash(pnpm dev)",
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(pnpm add:*)"
     ],
     "deny": [],
     "ask": []
