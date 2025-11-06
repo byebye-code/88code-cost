@@ -1,8 +1,8 @@
 {
   "name": "88code-cost",
-  "displayName": "88Code Cost Monitor",
+  "displayName": "88Code Cost",
   "version": "1.0.0",
-  "description": "88Code 计费监控插件，实时查看套餐额度使用情况和重置倒计时",
+  "description": "88Code Cost - 智能额度监控工具，实时追踪套餐使用情况并自动重置",
   "author": "88Code Team",
   "keywords": [
     "88code",
@@ -72,7 +72,8 @@
       "storage",
       "tabs",
       "cookies",
-      "scripting"
+      "scripting",
+      "activeTab"
     ]
   }
 }

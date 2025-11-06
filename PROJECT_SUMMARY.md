@@ -1,4 +1,4 @@
-# 88Code Cost Monitor - 项目总结
+# 88Code Cost - 项目总结
 
 ## 项目概览
 

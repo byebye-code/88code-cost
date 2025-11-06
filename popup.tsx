@@ -1,11 +1,12 @@
 import "./reset.css"
 
 import eruda from "eruda"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 
 import { RefreshButton } from "./components/RefreshButton"
 import { SettingsButton } from "./components/SettingsButton"
 import { SettingsPanel } from "./components/SettingsPanel"
+import { ThemeSwitcher } from "./components/ThemeSwitcher"
 import { EmptyState } from "./components/EmptyState"
 import {
   SubscriptionCardSkeleton,
@@ -29,7 +30,6 @@ function IndexPopup() {
   const [currentView, setCurrentView] = useState<ViewType>(ViewType.MAIN)
   const { tokenData, loading: authLoading } = useAuth()
   const { settings, loading: settingsLoading, saveSettings, resetSettings } = useSettings()
-  const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // 使用 Hook 获取数据
   const {
@@ -66,59 +66,44 @@ function IndexPopup() {
     setCurrentView(ViewType.MAIN)
   }
 
-  // popup 打开时立即获取数据
+  // 切换主题
+  const handleThemeChange = (theme: ThemeType) => {
+    saveSettings({ theme })
+  }
+
+  // popup 打开时立即获取数据并更新图标
   useEffect(() => {
+    // 通知 background 更新图标状态
+    browserAPI.runtime.sendMessage({ action: "updateIcon" }).catch(() => {
+      // 忽略错误（background 可能还未初始化）
+    })
+
     if (tokenData.isValid) {
       console.log("[Popup] 开始加载数据")
       handleRefresh()
     }
   }, [tokenData.isValid])
 
-  // popup 打开后 30 秒自动刷新
+  // 统一的自动刷新定时器
   useEffect(() => {
     if (!tokenData.isValid) {
       return
     }
 
-    // 设置 30 秒定时刷新
-    console.log("[Popup] 启用 30 秒自动刷新")
+    // 优先使用用户设置，否则使用默认30秒
+    const interval = settings.autoRefreshEnabled
+      ? settings.autoRefreshInterval * 1000
+      : 30 * 1000
+
+    console.log(`[Popup] 启用自动刷新，间隔 ${interval / 1000} 秒`)
+
     const timer = setInterval(() => {
-      console.log("[Popup] 30 秒自动刷新数据")
+      console.log("[Popup] 自动刷新数据")
       handleRefresh()
-    }, 30 * 1000)
+    }, interval)
 
-    // 清理函数
-    return () => {
-      clearInterval(timer)
-    }
-  }, [tokenData.isValid])
-
-  // 用户自定义间隔的自动刷新功能（如果启用）
-  useEffect(() => {
-    if (!tokenData.isValid || !settings.autoRefreshEnabled) {
-      // 清除定时器
-      if (autoRefreshTimerRef.current) {
-        clearInterval(autoRefreshTimerRef.current)
-        autoRefreshTimerRef.current = null
-      }
-      return
-    }
-
-    // 设置定时器
-    console.log(`[Popup] 启用用户自定义刷新，间隔 ${settings.autoRefreshInterval} 秒`)
-    autoRefreshTimerRef.current = setInterval(() => {
-      console.log("[Popup] 用户自定义间隔刷新数据")
-      handleRefresh()
-    }, settings.autoRefreshInterval * 1000)
-
-    // 清理函数
-    return () => {
-      if (autoRefreshTimerRef.current) {
-        clearInterval(autoRefreshTimerRef.current)
-        autoRefreshTimerRef.current = null
-      }
-    }
-  }, [tokenData.isValid, settings.autoRefreshEnabled, settings.autoRefreshInterval])
+    return () => clearInterval(timer)
+  }, [tokenData.isValid, settings.autoRefreshEnabled, settings.autoRefreshInterval, handleRefresh])
 
   // 主题切换
   useEffect(() => {
@@ -179,14 +164,21 @@ function IndexPopup() {
           {!authLoading && !tokenData.isValid ? (
             <EmptyState />
           ) : (
-            <div className="flex flex-col space-y-6 p-6">
+            <div className="flex flex-col space-y-4 p-6">
               {/* 头部 */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                    88Code 计费监控
+                  <h1 className="text-2xl font-bold tracking-tight">
+                    <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      88Code
+                    </span>
+                    {" "}
+                    <span className="text-orange-600 dark:text-orange-400">
+                      Cost
+                    </span>
                   </h1>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex items-center space-x-2">
+                    <ThemeSwitcher currentTheme={settings.theme} onThemeChange={handleThemeChange} />
                     <SettingsButton onClick={handleOpenSettings} />
                     {tokenData.isValid && (
                       <RefreshButton loading={loading} onRefresh={handleRefresh} />
@@ -214,17 +206,19 @@ function IndexPopup() {
 
               {/* 套餐列表 */}
               {tokenData.isValid && subscriptions.length > 0 && (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     套餐列表
                   </h2>
-                  {subscriptions.map((subscription) => (
-                    <SubscriptionCard
-                      key={subscription.id}
-                      subscription={subscription}
-                      onRefresh={handleRefresh}
-                    />
-                  ))}
+                  <div className="space-y-3">
+                    {subscriptions.map((subscription) => (
+                      <SubscriptionCard
+                        key={subscription.id}
+                        subscription={subscription}
+                        onRefresh={handleRefresh}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -233,19 +227,21 @@ function IndexPopup() {
                 (tokenData.isValid &&
                   subscriptions.length === 0 &&
                   subscriptionsLoading)) && (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     套餐列表
                   </h2>
-                  <SubscriptionCardSkeleton />
-                  <SubscriptionCardSkeleton />
+                  <div className="space-y-3">
+                    <SubscriptionCardSkeleton />
+                    <SubscriptionCardSkeleton />
+                  </div>
                 </div>
               )}
 
               {/* 版本信息 */}
               <div className="border-t border-gray-200 pt-4 dark:border-gray-700">
                 <p className="text-center text-xs text-gray-500 dark:text-gray-400">
-                  88Code Cost Monitor v1.0.0
+                  88Code Cost v1.0.0
                 </p>
               </div>
             </div>

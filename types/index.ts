@@ -114,21 +114,10 @@ export enum ThemeType {
   AUTO = "88code" // 跟随 88code 网站主题
 }
 
-// 定时重置时间窗口
-export interface ScheduledResetWindow {
-  enabled: boolean
-  hour: number // 0-23
-  minute: number // 0-59
-  randomMinutes: number // 随机偏移分钟数 (0-10)
-}
-
 // 定时重置配置
+// 固定在 18:55 和 23:55 执行，随机延迟 0-15 秒
 export interface ScheduledResetConfig {
-  enabled: boolean
-  windows: ScheduledResetWindow[] // 可配置多个时间窗口
-  minCreditsFor19: number // 19:00 前的最小额度要求 (默认 1)
-  minCreditsFor00: number // 00:00 前的最小额度要求 (默认 1)
-  maxResetTimes: number // 每日最大重置次数限制 (默认 2)
+  enabled: boolean // 是否启用自动重置
 }
 
 // 应用设置
@@ -154,23 +143,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoRefreshInterval: 60,
   theme: ThemeType.AUTO,
   scheduledReset: {
-    enabled: true,
-    windows: [
-      {
-        enabled: true,
-        hour: 19,
-        minute: 0,
-        randomMinutes: 5
-      },
-      {
-        enabled: true,
-        hour: 0,
-        minute: 0,
-        randomMinutes: 5
-      }
-    ],
-    minCreditsFor19: 1,
-    minCreditsFor00: 1,
-    maxResetTimes: 2
+    enabled: true // 默认启用自动重置
   }
 }

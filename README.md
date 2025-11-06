@@ -1,7 +1,7 @@
-# 88Code Cost Monitor
+# 88Code Cost
 
 <div align="center">
-  <p>智能化的 88Code 计费监控工具，实时追踪套餐额度使用情况。</p>
+  <p>智能额度监控工具，实时追踪套餐使用情况并自动重置。</p>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)
@@ -12,10 +12,11 @@
 
 ## ✨ 功能特性
 
-### 📊 核心监控功能
+### 📊 核心功能
 
 - 📈 **实时监控**: 查看总体使用情况和各套餐额度
 - 💰 **套餐跟踪**: 可视化显示每个套餐的使用进度
+- 🤖 **智能重置**: 18:55/23:55 自动重置，最大化利用重置窗口
 - 🔄 **重置倒计时**: 自动计算并显示套餐重置时间
 - 🔒 **安全认证**: 自动从 88code.org 读取认证 Token
 
