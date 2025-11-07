@@ -75,5 +75,15 @@
       "scripting",
       "activeTab"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "msgpackr": ">=1.10.1",
+      "content-security-policy-parser": ">=0.6.0",
+      "esbuild": ">=0.25.0",
+      "svelte": ">=4.2.19",
+      "tsup": ">=8.3.5",
+      "@parcel/reporter-dev-server": ">=2.12.0"
+    }
   }
 }

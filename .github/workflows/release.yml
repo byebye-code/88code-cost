@@ -6,6 +6,12 @@ on:
       - 'v*.*.*'  # 触发条件：推送版本标签，如 v1.0.0
   workflow_dispatch:  # 允许手动触发
 
+# 显式设置权限，遵循最小权限原则
+permissions:
+  contents: write  # 需要写入权限以创建 Release
+  actions: read    # 只需读取权限
+  checks: read     # 只需读取权限
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest

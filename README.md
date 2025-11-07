@@ -1,7 +1,7 @@
 # 88Code Cost
 
 <div align="center">
-  <img src="assets/icon128.png" alt="88Code Cost Logo" width="128" height="128">
+  <img src="assets/icon48.png" alt="88Code Cost Logo" width="128" height="128">
   <p><strong>智能额度监控工具，让您的 88Code 套餐使用一目了然</strong></p>
   <p>实时追踪套餐使用情况 · 智能自动重置 · 深色模式支持</p>
 
