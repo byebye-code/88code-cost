@@ -67,11 +67,70 @@ jobs:
         id: package_version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
+      - name: Extract changelog for version
+        id: changelog
+        run: |
+          VERSION="${{ github.ref_name }}"
+          # 移除 v 前缀，例如 v1.0.0 -> 1.0.0
+          VERSION_NUMBER="${VERSION#v}"
+
+          # 使用 awk 提取对应版本的 CHANGELOG 内容
+          CHANGELOG_CONTENT=$(awk -v version="$VERSION_NUMBER" '
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" version "\\]") {
+                found=1
+                next
+              }
+            }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md)
+
+          # 如果没有找到对应版本的 CHANGELOG，使用默认描述
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            CHANGELOG_CONTENT="## 📦 88Code Cost ${VERSION}
+
+          感谢使用 88Code Cost！本次发布包含以下浏览器版本：
+
+          - 🟦 Chrome / Edge (Manifest V3)
+          - 🟧 Firefox (Manifest V2)
+
+          详细更新内容请查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)。"
+          fi
+
+          # 使用 heredoc 保存多行内容
+          {
+            echo 'CONTENT<<EOF'
+            echo "$CHANGELOG_CONTENT"
+            echo EOF
+          } >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           name: Release ${{ github.ref_name }}
-          generate_release_notes: true
+          body: |
+            ${{ steps.changelog.outputs.CONTENT }}
+
+            ---
+
+            ## 📥 下载说明
+
+            请根据您的浏览器选择对应的版本下载：
+
+            - **Chrome / Edge**：下载 `88code-cost-chrome-${{ github.ref_name }}.zip`
+            - **Firefox**：下载 `88code-cost-firefox-${{ github.ref_name }}.zip`
+
+            ## 📖 安装指南
+
+            详细安装步骤请查看 [README.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md#安装方式)。
+
+            ## 🔗 相关链接
+
+            - [完整更新日志](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)
+            - [使用文档](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md)
+            - [问题反馈](https://github.com/${{ github.repository }}/issues)
           files: |
             88code-cost-chrome-${{ github.ref_name }}.zip
             88code-cost-firefox-${{ github.ref_name }}.zip

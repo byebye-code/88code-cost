@@ -63,7 +63,6 @@
          style="max-width: 100%; height: auto; cursor: pointer;">
   </a>
   <p><em>简洁直观的界面设计，套餐使用情况一目了然</em></p>
-  <p><small>💡 点击图片查看高清大图</small></p>
 </div>
 
 ---
@@ -336,8 +335,8 @@
 
 ### 环境要求
 
-- **Node.js**: >= 18.0.0
-- **pnpm**: >= 8.0.0
+- **Node.js**: >= 22.21.0
+- **pnpm**: >= 10.19.0
 - **操作系统**: macOS / Linux / Windows
 
 ### 本地开发
