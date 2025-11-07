@@ -164,8 +164,8 @@ if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage)
   chrome.runtime.onMessage.addListener(handleMessage)
   console.log("[Auth Handler] ✅ 消息监听器已注册（Chrome API）")
 } else if (typeof browser !== "undefined" && browser.runtime && browser.runtime.onMessage) {
-  // Firefox fallback
-  browser.runtime.onMessage.addListener(handleMessage)
+  // Firefox fallback - 使用 as any 避免类型不兼容
+  browser.runtime.onMessage.addListener(handleMessage as any)
   console.log("[Auth Handler] ✅ 消息监听器已注册（Browser API）")
 } else {
   console.error("[Auth Handler] ❌ 无法注册消息监听器：运行环境不支持")

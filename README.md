@@ -54,8 +54,16 @@
 ## 预览
 
 <div align="center">
-  <img src="assets/preview.png" alt="88Code Cost 预览" style="max-width: 920px; width: 100%;">
+  <a href="assets/preview.png" target="_blank">
+    <img src="assets/preview-thumb.png"
+         alt="88Code Cost 预览"
+         width="460"
+         height="600"
+         loading="lazy"
+         style="max-width: 100%; height: auto; cursor: pointer;">
+  </a>
   <p><em>简洁直观的界面设计，套餐使用情况一目了然</em></p>
+  <p><small>💡 点击图片查看高清大图</small></p>
 </div>
 
 ---

@@ -27,16 +27,16 @@ export const browserAPI = {
         if (typeof Browser !== "undefined" && Browser.storage) {
           return Browser.storage.local.set(items)
         }
-        return new Promise((resolve) => {
-          chrome.storage.local.set(items, resolve)
+        return new Promise<void>((resolve) => {
+          chrome.storage.local.set(items, () => resolve())
         })
       },
       remove: (keys: string | string[]) => {
         if (typeof Browser !== "undefined" && Browser.storage) {
           return Browser.storage.local.remove(keys)
         }
-        return new Promise((resolve) => {
-          chrome.storage.local.remove(keys, resolve)
+        return new Promise<void>((resolve) => {
+          chrome.storage.local.remove(keys, () => resolve())
         })
       }
     },
@@ -119,7 +119,7 @@ export const browserAPI = {
         ) => boolean | void
       ) => {
         if (typeof Browser !== "undefined" && Browser.runtime) {
-          Browser.runtime.onMessage.addListener(callback)
+          Browser.runtime.onMessage.addListener(callback as any)
         } else {
           chrome.runtime.onMessage.addListener(callback)
         }
@@ -132,7 +132,7 @@ export const browserAPI = {
         ) => boolean | void
       ) => {
         if (typeof Browser !== "undefined" && Browser.runtime) {
-          Browser.runtime.onMessage.removeListener(callback)
+          Browser.runtime.onMessage.removeListener(callback as any)
         } else {
           chrome.runtime.onMessage.removeListener(callback)
         }
@@ -143,7 +143,7 @@ export const browserAPI = {
         callback: (details: chrome.runtime.InstalledDetails) => void
       ) => {
         if (typeof Browser !== "undefined" && Browser.runtime) {
-          Browser.runtime.onInstalled.addListener(callback)
+          Browser.runtime.onInstalled.addListener(callback as any)
         } else {
           chrome.runtime.onInstalled.addListener(callback)
         }
@@ -160,6 +160,29 @@ export const browserAPI = {
       return new Promise<chrome.cookies.Cookie[]>((resolve) => {
         chrome.cookies.getAll(details, resolve)
       })
+    }
+  },
+
+  // Action API (跨浏览器兼容)
+  action: {
+    setIcon: (details: chrome.action.TabIconDetails) => {
+      // Firefox MV2 使用 browser.browserAction
+      if (typeof Browser !== "undefined" && Browser.browserAction) {
+        return Browser.browserAction.setIcon(details as any)
+      }
+      // Chrome MV3 使用 chrome.action
+      if (typeof chrome !== "undefined" && chrome.action) {
+        return new Promise<void>((resolve) => {
+          chrome.action.setIcon(details, () => resolve())
+        })
+      }
+      // Chrome MV2 使用 chrome.browserAction
+      if (typeof chrome !== "undefined" && chrome.browserAction) {
+        return new Promise<void>((resolve) => {
+          chrome.browserAction.setIcon(details as any, () => resolve())
+        })
+      }
+      return Promise.resolve()
     }
   }
 }

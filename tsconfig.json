@@ -6,5 +6,5 @@
       "~*": ["./*"]
     }
   },
-  "include": [".plasmo/index.d.ts", "./**/*.ts", "./**/*.tsx"]
+  "include": ["global.d.ts", ".plasmo/index.d.ts", "./**/*.ts", "./**/*.tsx"]
 }

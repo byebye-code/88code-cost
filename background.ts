@@ -28,9 +28,6 @@ const MAX_RANDOM_DELAY = 15 * 1000
 // 检查间隔：每分钟
 const CHECK_INTERVAL = 60 * 1000
 
-// 图标更新间隔：每 30 秒
-const ICON_UPDATE_INTERVAL = 30 * 1000
-
 console.log("[Background] 定时重置服务已启动")
 
 /**
@@ -54,42 +51,6 @@ async function getSettings(): Promise<AppSettings> {
  */
 async function getAuthToken(): Promise<string | null> {
   return await getStorageAuthToken()
-}
-
-/**
- * 更新图标状态
- * 登录时显示彩色图标，未登录时显示灰色图标
- */
-async function updateIconStatus() {
-  try {
-    const token = await getAuthToken()
-
-    if (token) {
-      // 已登录 - 显示彩色图标
-      await browserAPI.action.setIcon({
-        path: {
-          "16": "assets/icon16.png",
-          "32": "assets/icon32.png",
-          "48": "assets/icon48.png",
-          "128": "assets/icon128.png"
-        }
-      })
-      console.log("[Background] 图标状态：彩色（已登录）")
-    } else {
-      // 未登录 - 显示灰色图标
-      await browserAPI.action.setIcon({
-        path: {
-          "16": "assets/icon16-gray.png",
-          "32": "assets/icon32-gray.png",
-          "48": "assets/icon48-gray.png",
-          "128": "assets/icon128-gray.png"
-        }
-      })
-      console.log("[Background] 图标状态：灰色（未登录）")
-    }
-  } catch (error) {
-    console.error("[Background] 更新图标状态失败:", error)
-  }
 }
 
 /**
@@ -354,32 +315,12 @@ function startScheduledResetService() {
   }, CHECK_INTERVAL)
 }
 
-/**
- * 启动图标更新服务
- */
-function startIconUpdateService() {
-  console.log("[Background] 启动图标更新服务")
-  console.log(`[Background] 更新间隔: ${ICON_UPDATE_INTERVAL / 1000}秒`)
-
-  // 立即更新一次图标状态
-  updateIconStatus()
-
-  // 设置定时更新（每 5 分钟）
-  setInterval(() => {
-    updateIconStatus()
-  }, ICON_UPDATE_INTERVAL)
-}
-
 // 启动服务
 startScheduledResetService()
-startIconUpdateService()
 
 // 监听扩展安装/更新事件
 browserAPI.runtime.onInstalled.addListener((details) => {
   console.log("[Background] Extension installed/updated:", details.reason)
-
-  // 安装或更新后立即更新图标状态
-  updateIconStatus()
 
   if (details.reason === "install") {
     console.log("[Background] 首次安装")
@@ -388,27 +329,6 @@ browserAPI.runtime.onInstalled.addListener((details) => {
   }
 })
 
-// 监听 Storage 变化（token 变化时更新图标）
-browserAPI.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === "local") {
-    // 检查 authToken 是否变化
-    if (changes.authToken || changes["88code_authToken"]) {
-      console.log("[Background] 检测到 Token 变化，更新图标状态")
-      updateIconStatus()
-    }
-  }
-})
-
-// 监听来自 popup 的消息（popup 打开时触发图标更新）
-browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "updateIcon") {
-    console.log("[Background] 收到更新图标请求")
-    updateIconStatus().then(() => {
-      sendResponse({ success: true })
-    })
-    return true // 保持消息通道开启以支持异步响应
-  }
-})
 
 // 导出空对象以满足 TypeScript 模块要求
 export {}

@@ -73,8 +73,12 @@ function IndexPopup() {
 
   // popup 打开时立即获取数据并更新图标
   useEffect(() => {
-    // 通知 background 更新图标状态
-    browserAPI.runtime.sendMessage({ action: "updateIcon" }).catch(() => {
+    // 通知 background 更新图标状态，携带当前登录状态和 token
+    browserAPI.runtime.sendMessage({
+      action: "updateIcon",
+      isAuthenticated: tokenData.isValid,
+      token: tokenData.authToken
+    }).catch(() => {
       // 忽略错误（background 可能还未初始化）
     })
 

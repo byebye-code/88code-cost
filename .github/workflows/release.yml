@@ -76,21 +76,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Chrome artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: chrome-extension
           path: 88code-cost-chrome-${{ github.ref_name }}.zip
           retention-days: 90
 
       - name: Upload Firefox artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: firefox-extension
           path: 88code-cost-firefox-${{ github.ref_name }}.zip
           retention-days: 90
 
       - name: Upload Edge artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: edge-extension
           path: 88code-cost-edge-${{ github.ref_name }}.zip

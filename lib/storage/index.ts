@@ -10,6 +10,17 @@ import { browserAPI } from "../browser-api"
 
 export const storage = new Storage()
 
+// Content script 响应类型
+interface PingResponse {
+  success: boolean
+}
+
+interface GetLocalStorageResponse {
+  authToken?: string
+  tokenKey?: string
+  allLocalStorage?: Record<string, any>
+}
+
 /**
  * 清理 token 字符串，去除多余的引号和空格
  */
@@ -117,7 +128,7 @@ async function pingContentScript(tabId: number): Promise<boolean> {
     console.log(`[Storage] Ping 测试 content script (tabId: ${tabId})...`)
     const response = await browserAPI.tabs.sendMessage(tabId, {
       action: "ping"
-    })
+    }) as PingResponse
 
     if (response?.success) {
       console.log("[Storage] ✅ Content script 响应正常:", response)
@@ -176,7 +187,7 @@ async function sendMessageWithRetry(
       // 向内容脚本发送消息，请求读取 localStorage（使用跨浏览器 API）
       const response = await browserAPI.tabs.sendMessage(tabId, {
         action: "getLocalStorage"
-      })
+      }) as GetLocalStorageResponse
 
       console.log(`[Storage] 收到响应:`, {
         hasResponse: !!response,

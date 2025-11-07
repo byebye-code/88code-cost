@@ -4,7 +4,7 @@
  */
 
 import React from "react"
-import type { ThemeType } from "~/types"
+import { ThemeType } from "~/types"
 
 interface ThemeSwitcherProps {
   currentTheme: ThemeType
@@ -18,21 +18,21 @@ export function ThemeSwitcher({ currentTheme, onThemeChange }: ThemeSwitcherProp
     icon: string
     next: ThemeType
   }> = {
-    light: {
+    [ThemeType.LIGHT]: {
       label: "浅色模式",
       icon: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z",
-      next: "dark"
+      next: ThemeType.DARK
     },
-    dark: {
+    [ThemeType.DARK]: {
       label: "深色模式",
       icon: "M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z",
-      next: "88code"
+      next: ThemeType.AUTO
     },
-    "88code": {
+    [ThemeType.AUTO]: {
       label: "跟随88code",
       // 左右分割：左侧太阳光芒，右侧月亮弧线
       icon: "M12 2v2m0 16v2M6.34 6.34l1.42 1.42M6.34 17.66l1.42-1.42M2 12h2m16 0h2m-4.34-5.66l-1.42 1.42m1.42 11.9l-1.42-1.42M12 7a5 5 0 0 1 0 10z",
-      next: "light"
+      next: ThemeType.LIGHT
     }
   }
 
