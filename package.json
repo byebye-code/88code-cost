@@ -1,7 +1,7 @@
 {
   "name": "88code-cost",
   "displayName": "88Code Cost",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "88Code Cost - 智能额度监控工具，实时追踪套餐使用情况并自动重置",
   "author": "88Code Team",
   "keywords": [

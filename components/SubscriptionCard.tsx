@@ -8,6 +8,8 @@ import React, { useState, useEffect } from "react"
 import type { Subscription } from "~/types"
 import { resetCredits, toggleAutoReset } from "~/lib/api/client"
 import { getResetCountdown } from "~/lib/utils/format"
+import { useScheduledResetCountdown } from "~/hooks/useScheduledResetCountdown"
+import { canReset } from "~/lib/services/scheduledReset"
 import { Card, CardContent, CardHeader } from "~/components/ui/card"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -33,10 +35,16 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
   const [isResetting, setIsResetting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 重置倒计时状态
+  // 定时重置倒计时
+  const scheduledCountdown = useScheduledResetCountdown()
+
+  // 手动重置倒计时状态
   const [resetCountdown, setResetCountdown] = useState(
     getResetCountdown(subscription.lastCreditReset)
   )
+
+  // 检查是否满足定时重置条件
+  const scheduledResetCheck = canReset(subscription, scheduledCountdown.requiredResetTimes)
 
   // 每秒更新倒计时
   useEffect(() => {
@@ -234,53 +242,77 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
           />
         </div>
 
-        {/* 操作按钮区域 - 紧凑单行布局 */}
-        <div className="space-y-2 border-t pt-2">
-          {/* 错误提示 */}
-          {error && (
-            <div className="rounded-md bg-destructive/10 p-1.5">
-              <p className="text-xs text-destructive">{error}</p>
-            </div>
-          )}
+        {/* 定时重置倒计时提醒 - 仅在3分钟内显示 */}
+        {/* TODO: 需要改为全局检查 - 所有套餐中只要有一个满足条件就显示 */}
+        {subscription.subscriptionPlanName !== "PAYGO" && scheduledCountdown.isImminent && (
+          <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 px-3 py-2">
+            {/* 光效背景 */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(139,92,246,0.3),rgba(255,255,255,0))]" />
 
-          {/* 自动重置和手动重置 - 单行 */}
-          <div className="flex items-center gap-2">
-            {/* 自动重置开关 */}
-            <div className="flex flex-1 items-center justify-between rounded-md bg-muted/50 px-2 py-1.5">
-              <span className="text-xs font-medium">
-                自动重置
+            {/* 内容 */}
+            <div className="relative flex items-center justify-between">
+              <span className="text-sm font-semibold tracking-wide text-white drop-shadow-lg">
+                定时重置倒计时
               </span>
-              <Switch
-                checked={autoResetEnabled}
-                onCheckedChange={handleToggleAutoReset}
-                disabled={isTogglingAutoReset}
-                aria-label="切换自动重置"
-              />
-            </div>
-
-            {/* 手动重置按钮 - 紧凑版 */}
-            <Button
-              onClick={handleManualReset}
-              disabled={isResetting || !resetCountdown.canReset || currentCredits === creditLimit || subscription.resetTimes === 0}
-              size="sm"
-              variant={resetCountdown.canReset && currentCredits !== creditLimit && subscription.resetTimes > 0 ? "default" : "secondary"}
-              className="flex-1 text-xs">
-              {isResetting ? (
-                <span>重置中...</span>
-              ) : (
-                <span>
-                  {subscription.resetTimes === 0
-                    ? "无重置次数"
-                    : currentCredits === creditLimit
-                      ? "额度已满"
-                      : resetCountdown.canReset
-                        ? "手动重置"
-                        : `${resetCountdown.remainingTime}`}
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-bold tabular-nums text-white drop-shadow-lg">
+                  {Math.floor(scheduledCountdown.timeUntilReset / 1000)}
                 </span>
-              )}
-            </Button>
+                <span className="text-xs font-medium text-white/80">秒</span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* 操作按钮区域 - 紧凑单行布局（PAYGO 套餐不显示） */}
+        {subscription.subscriptionPlanName !== "PAYGO" && (
+          <div className="space-y-2 border-t pt-2">
+            {/* 错误提示 */}
+            {error && (
+              <div className="rounded-md bg-destructive/10 p-1.5">
+                <p className="text-xs text-destructive">{error}</p>
+              </div>
+            )}
+
+            {/* 自动重置和手动重置 - 单行 */}
+            <div className="flex items-center gap-2">
+              {/* 自动重置开关 */}
+              <div className="flex flex-1 items-center justify-between rounded-md bg-muted/50 px-2 py-1.5">
+                <span className="text-xs font-medium">
+                  自动重置
+                </span>
+                <Switch
+                  checked={autoResetEnabled}
+                  onCheckedChange={handleToggleAutoReset}
+                  disabled={isTogglingAutoReset}
+                  aria-label="切换自动重置"
+                />
+              </div>
+
+              {/* 手动重置按钮 - 紧凑版 */}
+              <Button
+                onClick={handleManualReset}
+                disabled={isResetting || !resetCountdown.canReset || currentCredits === creditLimit || subscription.resetTimes === 0}
+                size="sm"
+                variant={resetCountdown.canReset && currentCredits !== creditLimit && subscription.resetTimes > 0 ? "default" : "secondary"}
+                className="flex-1 text-xs">
+                {isResetting ? (
+                  <span>重置中...</span>
+                ) : (
+                  <span>
+                    {subscription.resetTimes === 0
+                      ? "无重置次数"
+                      : currentCredits === creditLimit
+                        ? "额度已满"
+                        : resetCountdown.canReset
+                          ? "手动重置"
+                          : `${resetCountdown.remainingTime}`}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
