@@ -8,7 +8,8 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat&logo=google-chrome&logoColor=white)
 ![Firefox Add-on](https://img.shields.io/badge/Firefox-Add--on-FF7139?style=flat&logo=firefox&logoColor=white)
-![Version](https://img.shields.io/badge/version-1.0.0-green.svg)
+![GitHub Release](https://img.shields.io/github/v/release/byebye-code/88code-cost?label=version&color=green)
+![GitHub Downloads](https://img.shields.io/github/downloads/byebye-code/88code-cost/total?label=downloads&color=blue)
 
 </div>
 
