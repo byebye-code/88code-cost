@@ -8,7 +8,7 @@ import { resetCredits, fetchSubscriptions } from "~/lib/api/client"
 
 // 定时重置配置
 export const RESET_TIMES = {
-  FIRST: { hour: 16, minute: 55, requiredResetTimes: 2 },  // 16:55，需要 ≥2 次
+  FIRST: { hour: 18, minute: 55, requiredResetTimes: 2 },  // 18:55，需要 ≥2 次
   SECOND: { hour: 23, minute: 55, requiredResetTimes: 1 }  // 23:55，需要 ≥1 次
 } as const
 
