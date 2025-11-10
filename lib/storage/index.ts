@@ -43,25 +43,39 @@ function cleanToken(token: string | null | undefined): string | null {
 /**
  * 从 88code.org 网站的 localStorage 中读取 authToken
  * 需要通过 content script 来访问网站的 localStorage
+ *
+ * 优先级策略：
+ * 1. 优先从网站 localStorage 读取最新 token（确保同步）
+ * 2. 如果网站读取失败（标签页不存在等），降级使用扩展 storage 缓存
+ * 3. 每次成功从网站读取后，自动更新扩展 storage 缓存
  */
 export async function getAuthToken(): Promise<string | null> {
   try {
-    // 从扩展自己的 storage 中读取
-    let token = await storage.get("authToken")
+    // 优先从网站的 localStorage 中读取最新 token
+    console.log("[Storage] 尝试从网站读取最新 token...")
+    const websiteToken = await getTokenFromWebsite()
 
-    // 清理 token（去除引号）
-    token = cleanToken(token)
-
-    // 如果没有 token，尝试从网站的 localStorage 中读取
-    if (!token) {
-      const websiteToken = await getTokenFromWebsite()
-      if (websiteToken) {
-        await saveAuthToken(websiteToken)
-        return cleanToken(websiteToken)
-      }
+    if (websiteToken) {
+      const cleanedToken = cleanToken(websiteToken)
+      console.log("[Storage] [OK] 成功从网站读取 token，同步到扩展 storage")
+      // 自动同步到扩展 storage，作为缓存备份
+      await saveAuthToken(cleanedToken || "")
+      return cleanedToken
     }
 
-    return token || null
+    // 降级方案：从扩展 storage 读取缓存的 token
+    console.log("[Storage] [WARN] 网站 token 读取失败，尝试使用缓存...")
+    let cachedToken = await storage.get("authToken")
+    cachedToken = cleanToken(cachedToken)
+
+    if (cachedToken) {
+      console.log("[Storage] [INFO] 使用缓存的 token（可能不是最新）")
+    } else {
+      console.log("[Storage] [ERROR] 未找到缓存 token")
+      console.log("[Storage] [TIP] 请访问并登录 88code.org，然后刷新页面")
+    }
+
+    return cachedToken || null
   } catch (error) {
     console.error("[Storage] 读取 token 失败:", error)
     return null
@@ -131,17 +145,17 @@ async function pingContentScript(tabId: number): Promise<boolean> {
     }) as PingResponse
 
     if (response?.success) {
-      console.log("[Storage] ✅ Content script 响应正常:", response)
+      console.log("[Storage] [OK] Content script 响应正常:", response)
       return true
     }
 
-    console.warn("[Storage] ⚠️ Content script 响应异常:", response)
+    console.warn("[Storage] [WARN] Content script 响应异常:", response)
     return false
   } catch (error: any) {
-    console.warn("[Storage] ⚠️ Ping 测试失败:", error.message)
+    console.warn("[Storage] [WARN] Ping 测试失败:", error.message)
 
     // 打印更详细的调试信息
-    console.error("[Storage] 🔍 详细调试信息:")
+    console.error("[Storage] [DEBUG] 详细调试信息:")
     console.error("  - Tab ID:", tabId)
     console.error("  - 错误名称:", error.name)
     console.error("  - 错误消息:", error.message)
@@ -174,8 +188,8 @@ async function sendMessageWithRetry(
   // 先进行 ping 测试，确认 content script 是否可用
   const isPingSuccess = await pingContentScript(tabId)
   if (!isPingSuccess) {
-    console.error("[Storage] ❌ Content script ping 测试失败")
-    console.error("[Storage] 💡 解决方案：请刷新 88code.org 页面后重试")
+    console.error("[Storage] [ERROR] Content script ping 测试失败")
+    console.error("[Storage] [TIP] 解决方案：请刷新 88code.org 页面后重试")
     console.error("[Storage] 原因：页面在扩展安装/更新前已打开，content script 未注入")
     return null
   }
@@ -197,7 +211,7 @@ async function sendMessageWithRetry(
       })
 
       if (response?.authToken) {
-        console.log(`[Storage] ✅ 成功读取 token (尝试 ${i + 1}/${maxRetries})`)
+        console.log(`[Storage] [OK] 成功读取 token (尝试 ${i + 1}/${maxRetries})`)
         return response.authToken
       }
 
@@ -223,7 +237,7 @@ async function sendMessageWithRetry(
 
       // 最后一次重试失败，或其他错误
       if (isLastRetry) {
-        console.error("[Storage] ❌ 从网站读取 token 失败:", error.message)
+        console.error("[Storage] [ERROR] 从网站读取 token 失败:", error.message)
         console.error("[Storage] 可能原因:")
         console.error("  1. Content script 未注入到页面")
         console.error("  2. 88code.org 页面未加载完成")

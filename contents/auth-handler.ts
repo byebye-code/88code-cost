@@ -96,14 +96,14 @@ function handleMessage(
         ) {
           foundToken = allLocalStorage[key]
           foundKey = key
-          console.log(`[Auth Handler] ✅ 找到 token，键: ${foundKey}`)
+          console.log(`[Auth Handler] [OK] 找到 token，键: ${foundKey}`)
           console.log(`[Auth Handler] Token 前20个字符: ${foundToken?.substring(0, 20)}...`)
           break
         }
       }
 
       if (!foundToken) {
-        console.warn("[Auth Handler] ⚠️ 未找到 token，请检查是否已登录")
+        console.warn("[Auth Handler] [WARN] 未找到 token，请检查是否已登录")
         console.warn("[Auth Handler] 可能的原因:")
         console.warn("  1. 用户未登录 88code.org")
         console.warn("  2. Token 存储在其他位置（sessionStorage、cookie）")
@@ -162,11 +162,11 @@ function handleMessage(
 // 使用原生 Chrome API，避免 Edge 的 polyfill 问题
 if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener(handleMessage)
-  console.log("[Auth Handler] ✅ 消息监听器已注册（Chrome API）")
+  console.log("[Auth Handler] [OK] 消息监听器已注册（Chrome API）")
 } else if (typeof browser !== "undefined" && browser.runtime && browser.runtime.onMessage) {
   // Firefox fallback - 使用 as any 避免类型不兼容
   browser.runtime.onMessage.addListener(handleMessage as any)
-  console.log("[Auth Handler] ✅ 消息监听器已注册（Browser API）")
+  console.log("[Auth Handler] [OK] 消息监听器已注册（Browser API）")
 } else {
-  console.error("[Auth Handler] ❌ 无法注册消息监听器：运行环境不支持")
+  console.error("[Auth Handler] [ERROR] 无法注册消息监听器：运行环境不支持")
 }

@@ -23,7 +23,7 @@ export function useAuth() {
 
       if (!token) {
         console.log("[Auth] 未找到 token")
-        console.log("[Auth] 💡 如果您已登录 88code.org，请刷新该页面后重试")
+        console.log("[Auth] [TIP] 如果您已登录 88code.org，请刷新该页面后重试")
         setTokenData({
           authToken: null,
           isValid: false
