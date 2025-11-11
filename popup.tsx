@@ -1,13 +1,13 @@
 import "./reset.css"
 
 import eruda from "eruda"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { RefreshButton } from "./components/RefreshButton"
 import { SettingsButton } from "./components/SettingsButton"
 import { SettingsPanel } from "./components/SettingsPanel"
 import { ThemeSwitcher } from "./components/ThemeSwitcher"
-import { EmptyState } from "./components/EmptyState"
+import LoginPrompt from "./components/LoginPrompt"
 import {
   SubscriptionCardSkeleton,
   UsageDisplaySkeleton
@@ -18,7 +18,10 @@ import { useAuth } from "./hooks/useAuth"
 import { useDashboard } from "./hooks/useDashboard"
 import { useSubscriptions } from "./hooks/useSubscriptions"
 import { useSettings } from "./hooks/useSettings"
+import packageJson from "./package.json"
+import { useResetWindowTracker } from "./hooks/useResetWindowTracker"
 import { browserAPI } from "./lib/browser-api"
+import { extractResetTimes } from "./lib/utils/resetTime"
 import { ViewType, ThemeType } from "./types"
 
 // 在开发环境中启用 Eruda 调试工具
@@ -28,7 +31,7 @@ if (process.env.NODE_ENV === "development") {
 
 function IndexPopup() {
   const [currentView, setCurrentView] = useState<ViewType>(ViewType.MAIN)
-  const { tokenData, loading: authLoading } = useAuth()
+  const { tokenData, loading: authLoading, retry } = useAuth()
   const { settings, loading: settingsLoading, saveSettings, resetSettings } = useSettings()
 
   // 使用 Hook 获取数据
@@ -48,13 +51,13 @@ function IndexPopup() {
 
   const loading = authLoading || dashboardLoading || subscriptionsLoading
 
-  // 刷新所有数据
-  const handleRefresh = () => {
+  // 刷新所有数据 - 使用 useCallback 避免不必要的依赖更新
+  const handleRefresh = useCallback(() => {
     if (tokenData.isValid) {
       refreshDashboard()
       refreshSubscriptions()
     }
-  }
+  }, [tokenData.isValid, refreshDashboard, refreshSubscriptions])
 
   // 打开设置
   const handleOpenSettings = () => {
@@ -71,20 +74,23 @@ function IndexPopup() {
     saveSettings({ theme })
   }
 
-  // popup 打开时立即获取数据并更新图标
+  // popup 打开时更新图标状态
+  // 注意：不再主动调用 handleRefresh()，因为优化后的 hooks 会自动从缓存加载数据
   useEffect(() => {
-    // 通知 background 更新图标状态，携带当前登录状态和 token
-    browserAPI.runtime.sendMessage({
-      action: "updateIcon",
-      isAuthenticated: tokenData.isValid,
-      token: tokenData.authToken
-    }).catch(() => {
-      // 忽略错误（background 可能还未初始化）
+    // 非阻塞地通知 background 更新图标状态
+    // 使用 Promise 避免阻塞渲染
+    Promise.resolve().then(() => {
+      browserAPI.runtime.sendMessage({
+        action: "updateIcon",
+        isAuthenticated: tokenData.isValid,
+        token: tokenData.authToken
+      }).catch(() => {
+        // 忽略错误（background 可能还未初始化）
+      })
     })
 
     if (tokenData.isValid) {
-      console.log("[Popup] 开始加载数据")
-      handleRefresh()
+      console.log("[Popup] Popup 已打开，hooks 将自动从缓存加载数据（秒开优化）")
     }
   }, [tokenData.isValid])
 
@@ -103,11 +109,85 @@ function IndexPopup() {
 
     const timer = setInterval(() => {
       console.log("[Popup] 自动刷新数据")
-      handleRefresh()
+      // 直接调用刷新函数，避免依赖 handleRefresh 引用
+      refreshDashboard()
+      refreshSubscriptions()
     }, interval)
 
     return () => clearInterval(timer)
-  }, [tokenData.isValid, settings.autoRefreshEnabled, settings.autoRefreshInterval, handleRefresh])
+  }, [tokenData.isValid, settings.autoRefreshEnabled, settings.autoRefreshInterval, refreshDashboard, refreshSubscriptions])
+
+  // 检查是否有符合规则的套餐（非 PAYGO、活跃中、额度未满、有剩余重置次数）
+  const hasEligibleSubscriptions = (): boolean => {
+    return subscriptions.some((sub) => {
+      const basicCheck =
+        !sub.subscriptionPlanName.includes("PAYGO") &&
+        sub.isActive &&
+        sub.subscriptionStatus === "活跃中"
+
+      if (!basicCheck) return false
+
+      // 额度未满
+      const notFull = sub.currentCredits < sub.subscriptionPlan.creditLimit
+
+      // 有剩余重置次数
+      const hasResetTimes = sub.resetTimes > 0
+
+      return notFull && hasResetTimes
+    })
+  }
+
+  // 窗口开始时的统一刷新回调
+  const onWindowStartRefresh = async (): Promise<void> => {
+    console.log("[Popup] 执行窗口开始的统一刷新")
+    await Promise.all([refreshDashboard(), refreshSubscriptions()])
+  }
+
+  // 重置窗口追踪器 - 只追踪符合条件的套餐
+  const resetTimes = useMemo(() => {
+    if (subscriptions.length === 0) return []
+
+    // 筛选符合条件的套餐
+    const eligibleSubs = subscriptions.filter((sub) => {
+      const basicCheck =
+        !sub.subscriptionPlanName.includes("PAYGO") &&
+        sub.isActive &&
+        sub.subscriptionStatus === "活跃中"
+
+      if (!basicCheck) return false
+
+      // 额度未满
+      const notFull = sub.currentCredits < sub.subscriptionPlan.creditLimit
+
+      // 有剩余重置次数
+      const hasResetTimes = sub.resetTimes > 0
+
+      return notFull && hasResetTimes
+    })
+
+    // 只提取符合条件的套餐的窗口内冷却时间
+    return extractResetTimes(eligibleSubs, true)
+  }, [subscriptions])
+
+  const resetWindowStatus = useResetWindowTracker({
+    enabled: settings.scheduledReset.enabled && tokenData.isValid,
+    onWindowStartRefresh: onWindowStartRefresh,
+    hasEligibleSubscriptions: hasEligibleSubscriptions,
+    onResetTriggered: () => {
+      console.log("[Popup] 重置窗口触发刷新")
+      handleRefresh()
+    },
+    cooldownEndTimes: resetTimes
+  })
+
+  // 调试信息：显示重置窗口状态
+  useEffect(() => {
+    if (resetWindowStatus.inWindow && resetTimes.length > 0) {
+      console.log(
+        `[Popup] 当前在重置窗口内，正在追踪 ${resetWindowStatus.trackedCount} 个重置时间`
+      )
+    }
+  }, [resetWindowStatus.inWindow, resetWindowStatus.trackedCount, resetTimes.length])
 
   // 主题切换
   useEffect(() => {
@@ -166,7 +246,7 @@ function IndexPopup() {
       ) : (
         <div className="flex flex-col h-full overflow-y-auto">
           {!authLoading && !tokenData.isValid ? (
-            <EmptyState />
+            <LoginPrompt onRetry={retry} />
           ) : (
             <div className="flex flex-col space-y-4 p-6">
               {/* 头部 */}
@@ -245,7 +325,7 @@ function IndexPopup() {
               {/* 版本信息 */}
               <div className="border-t border-gray-200 pt-4 dark:border-gray-700">
                 <p className="text-center text-xs text-gray-500 dark:text-gray-400">
-                  88Code Cost v1.0.0
+                  88Code Cost v{packageJson.version}
                 </p>
               </div>
             </div>

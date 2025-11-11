@@ -11,14 +11,145 @@ import type {
   Subscription
 } from "~/types"
 
-import { getAuthToken } from "../storage"
+import { getAuthToken, getAuthTokenFromStorage } from "../storage"
 import { API_ENDPOINTS, getApiUrl } from "./config"
+
+import { apiLogger } from "../utils/logger"
+
+/**
+ * 会话级别的 token 缓存
+ * 在单次 popup 打开期间复用 token，避免重复调用 getAuthToken()
+ */
+let sessionTokenCache: string | null = null
+let sessionTokenPromise: Promise<string | null> | null = null
+
+/**
+ * 检测是否在 background worker 上下文中
+ */
+function isBackgroundContext(): boolean {
+  // 检测是否有 document 对象（background worker 中没有）
+  if (typeof document === 'undefined') {
+    return true
+  }
+
+  // 检测是否在 service worker 中
+  if (typeof ServiceWorkerGlobalScope !== 'undefined' && self instanceof ServiceWorkerGlobalScope) {
+    return true
+  }
+
+  return false
+}
+
+/**
+ * 获取会话级别缓存的 token
+ * 如果是首次调用，从网站读取并缓存；后续调用直接返回缓存
+ *
+ * 注意：此函数处理并发调用，多个同时调用只会触发一次 getAuthToken()
+ *
+ * Background Worker 策略：
+ * 1. 优先从扩展 storage 读取（由 popup 同步过来）
+ * 2. 如果 storage 为空，尝试从网站读取（可能失败）
+ */
+export async function getSessionToken(): Promise<string | null> {
+  // 如果已有缓存，直接返回
+  if (sessionTokenCache !== null) {
+    apiLogger.debug("使用会话缓存的 token")
+    return sessionTokenCache
+  }
+
+  // 如果正在获取 token（防止并发重复调用），等待该 Promise
+  if (sessionTokenPromise) {
+    apiLogger.debug("等待正在进行的 token 获取...")
+    return await sessionTokenPromise
+  }
+
+  // 首次获取 token
+  const isBackground = isBackgroundContext()
+  if (isBackground) {
+    console.log("[API] 在 background 上下文中，优先从 storage 读取 token")
+
+    sessionTokenPromise = getAuthTokenFromStorage()
+      .then(token => {
+        if (token) {
+          console.log("[API] ✅ 从 storage 读取 token 成功")
+          sessionTokenCache = token
+          sessionTokenPromise = null
+          return token
+        }
+
+        // Storage 为空，尝试从网站读取（可能失败）
+        console.log("[API] ⚠️ Storage 中没有 token，尝试从网站读取（可能失败）")
+        return getAuthToken()
+          .then(webToken => {
+            sessionTokenCache = webToken
+            sessionTokenPromise = null
+            if (webToken) {
+              console.log("[API] ✅ 从网站读取 token 成功")
+            } else {
+              console.error("[API] ❌ 从网站读取 token 失败")
+              console.error("[API] [TIP] 请先打开 popup，让它从网站同步 token 到 storage")
+            }
+            return webToken
+          })
+      })
+      .catch(error => {
+        apiLogger.error("获取 token 失败:", error)
+        sessionTokenPromise = null
+        return null
+      })
+  } else {
+    // Popup 上下文：优先从网站读取，降级到缓存
+    apiLogger.info("首次获取 token（会话开始）")
+    sessionTokenPromise = getAuthToken()
+      .then(token => {
+        if (token) {
+          // 从网站读取成功（有打开的标签页）
+          console.log("[API] ✅ 从网站读取 token 成功")
+          sessionTokenCache = token
+          sessionTokenPromise = null
+          return token
+        }
+
+        // 网站读取失败（没有打开的标签页），降级到缓存
+        console.log("[API] ⚠️ 没有打开的网站标签页，尝试使用缓存 token")
+        return getAuthTokenFromStorage()
+          .then(cachedToken => {
+            sessionTokenCache = cachedToken
+            sessionTokenPromise = null
+            if (cachedToken) {
+              console.log("[API] ✅ 使用缓存 token")
+            } else {
+              console.error("[API] ❌ 缓存中也没有 token")
+              console.error("[API] [TIP] 请先访问并登录 88code.org")
+            }
+            return cachedToken
+          })
+      })
+      .catch(error => {
+        apiLogger.error("获取 token 失败:", error)
+        sessionTokenPromise = null
+        return null
+      })
+  }
+
+  return await sessionTokenPromise
+}
+
+/**
+ * 清除会话级别的 token 缓存
+ * 在需要强制刷新 token 时调用
+ */
+export function clearSessionTokenCache() {
+  console.log("[API] 清除会话 token 缓存")
+  sessionTokenCache = null
+  sessionTokenPromise = null
+}
 
 /**
  * 创建带认证的请求头
  */
 async function createAuthHeaders(): Promise<HeadersInit> {
-  const authToken = await getAuthToken()
+  const authToken = await getSessionToken()
 
   const headers: HeadersInit = {
     "Content-Type": "application/json"

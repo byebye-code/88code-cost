@@ -211,40 +211,82 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
       </CardHeader>
 
       <CardContent className="px-4 pb-4 pt-0 space-y-3">
-        {/* 单行额度展示 - 无边框 */}
-        <div className="flex items-baseline justify-between">
-          {/* 重置次数显示 */}
-          {subscription.resetTimes > 0 && (
-            <Badge variant="outline" className="text-xs">
-              ×{subscription.resetTimes}
-            </Badge>
-          )}
-          <span className={`text-sm font-semibold ${subscription.resetTimes === 0 ? 'ml-auto' : ''}`}>
-            <span className="text-primary">${currentCredits.toFixed(2)}</span>
-            <span className="mx-1 text-muted-foreground">/</span>
-            <span className="text-foreground">${creditLimit.toFixed(2)}</span>
-          </span>
-        </div>
-
-        {/* 剩余额度和进度条 */}
-        <div>
-          <div className="mb-2 flex justify-between text-xs">
-            <span className="text-muted-foreground">剩余额度</span>
-            <span className={`font-semibold ${getTextColor(Number(remainingPercentage))}`}>
-              {remainingPercentage}%
-            </span>
+        {/* PAYGO 套餐：余额制展示 */}
+        {subscription.subscriptionPlanName.includes("PAYGO") ? (
+          <div className="space-y-3">
+            {/* 账户余额 - 大号显示 */}
+            <div className="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-medium text-muted-foreground">账户余额</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-bold text-primary">${currentCredits.toFixed(2)}</span>
+                </div>
+              </div>
+              {/* 余额状态指示器 - 基于绝对金额 */}
+              <div className="mt-3 flex items-center gap-2">
+                <div className={`h-2 flex-1 rounded-full ${
+                  currentCredits < 5
+                    ? 'bg-red-500 dark:bg-red-600'
+                    : currentCredits < 20
+                      ? 'bg-orange-500 dark:bg-orange-600'
+                      : currentCredits < 50
+                        ? 'bg-yellow-500 dark:bg-yellow-600'
+                        : 'bg-green-500 dark:bg-green-600'
+                }`} />
+                <span className={`text-xs font-medium ${
+                  currentCredits < 5
+                    ? 'text-red-600 dark:text-red-400'
+                    : currentCredits < 20
+                      ? 'text-orange-600 dark:text-orange-400'
+                      : currentCredits < 50
+                        ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-green-600 dark:text-green-400'
+                }`}>
+                  {currentCredits < 5 ? '余额不足' : currentCredits < 20 ? '余额偏低' : currentCredits < 50 ? '余额充足' : '余额充裕'}
+                </span>
+              </div>
+            </div>
           </div>
-          <Progress
-            value={Number(remainingPercentage)}
-            max={100}
-            indicatorClassName={getProgressGradient(Number(remainingPercentage))}
-            className="h-2"
-          />
-        </div>
+        ) : (
+          /* 常规套餐：配额制展示 */
+          <>
+            {/* 单行额度展示 - 无边框 */}
+            <div className="flex items-baseline justify-between">
+              {/* 重置次数显示 */}
+              {subscription.resetTimes > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  ×{subscription.resetTimes}
+                </Badge>
+              )}
+              <span className={`text-sm font-semibold ${subscription.resetTimes === 0 ? 'ml-auto' : ''}`}>
+                <span className="text-primary">${currentCredits.toFixed(2)}</span>
+                <span className="mx-1 text-muted-foreground">/</span>
+                <span className="text-foreground">${creditLimit.toFixed(2)}</span>
+              </span>
+            </div>
+
+            {/* 剩余额度和进度条 */}
+            <div>
+              <div className="mb-2 flex justify-between text-xs">
+                <span className="text-muted-foreground">剩余额度</span>
+                <span className={`font-semibold ${getTextColor(Number(remainingPercentage))}`}>
+                  {remainingPercentage}%
+                </span>
+              </div>
+              <Progress
+                value={Number(remainingPercentage)}
+                max={100}
+                indicatorClassName={getProgressGradient(Number(remainingPercentage))}
+                className="h-2"
+              />
+            </div>
+          </>
+        )}
 
         {/* 定时重置倒计时提醒 - 仅在3分钟内显示 */}
-        {/* TODO: 需要改为全局检查 - 所有套餐中只要有一个满足条件就显示 */}
-        {subscription.subscriptionPlanName !== "PAYGO" && scheduledCountdown.isImminent && (
+        {/* 注意：倒计时是全局的（在 popup.tsx 中通过 useScheduledResetCountdown 统一管理） */}
+        {/* PAYGO 套餐不参与定时重置，已在 hasEligibleSubscriptions 中被过滤 */}
+        {!subscription.subscriptionPlanName.includes("PAYGO") && scheduledCountdown.isImminent && (
           <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 px-3 py-2">
             {/* 光效背景 */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(139,92,246,0.3),rgba(255,255,255,0))]" />
@@ -265,7 +307,7 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
         )}
 
         {/* 操作按钮区域 - 紧凑单行布局（PAYGO 套餐不显示） */}
-        {subscription.subscriptionPlanName !== "PAYGO" && (
+        {!subscription.subscriptionPlanName.includes("PAYGO") && (
           <div className="space-y-2 border-t pt-2">
             {/* 错误提示 */}
             {error && (

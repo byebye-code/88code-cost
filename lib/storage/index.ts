@@ -41,41 +41,53 @@ function cleanToken(token: string | null | undefined): string | null {
 }
 
 /**
+ * 检查是否有打开的 88code.org 标签页
+ */
+export async function hasOpenWebsiteTabs(): Promise<boolean> {
+  try {
+    const tabs = await browserAPI.tabs.query({ url: "https://www.88code.org/*" })
+    return tabs.length > 0
+  } catch (error) {
+    console.error("[Storage] 检查标签页失败:", error)
+    return false
+  }
+}
+
+/**
  * 从 88code.org 网站的 localStorage 中读取 authToken
  * 需要通过 content script 来访问网站的 localStorage
  *
- * 优先级策略：
- * 1. 优先从网站 localStorage 读取最新 token（确保同步）
- * 2. 如果网站读取失败（标签页不存在等），降级使用扩展 storage 缓存
- * 3. 每次成功从网站读取后，自动更新扩展 storage 缓存
+ * 策略优化（支持降级）：
+ * 1. 先检查是否有打开的 88code.org 标签页
+ * 2. 有标签页：从网站 localStorage 读取 token（确保获取最新）
+ * 3. 没有标签页：快速返回 null，让调用方使用缓存 token
+ * 4. 读取成功后同步到扩展 storage（供 background 等使用）
  */
 export async function getAuthToken(): Promise<string | null> {
   try {
-    // 优先从网站的 localStorage 中读取最新 token
-    console.log("[Storage] 尝试从网站读取最新 token...")
+    // 先检查是否有打开的 88code.org 标签页
+    const hasOpenTabs = await hasOpenWebsiteTabs()
+
+    if (!hasOpenTabs) {
+      console.log("[Storage] [INFO] 没有打开的 88code.org 标签页，返回 null")
+      console.log("[Storage] [TIP] 调用方应该使用缓存的 token，或引导用户登录")
+      return null
+    }
+
+    console.log("[Storage] 从网站 localStorage 读取 token...")
     const websiteToken = await getTokenFromWebsite()
 
     if (websiteToken) {
       const cleanedToken = cleanToken(websiteToken)
       console.log("[Storage] [OK] 成功从网站读取 token，同步到扩展 storage")
-      // 自动同步到扩展 storage，作为缓存备份
+      // 同步到扩展 storage（供 background 等其他场景使用）
       await saveAuthToken(cleanedToken || "")
       return cleanedToken
     }
 
-    // 降级方案：从扩展 storage 读取缓存的 token
-    console.log("[Storage] [WARN] 网站 token 读取失败，尝试使用缓存...")
-    let cachedToken = await storage.get("authToken")
-    cachedToken = cleanToken(cachedToken)
-
-    if (cachedToken) {
-      console.log("[Storage] [INFO] 使用缓存的 token（可能不是最新）")
-    } else {
-      console.log("[Storage] [ERROR] 未找到缓存 token")
-      console.log("[Storage] [TIP] 请访问并登录 88code.org，然后刷新页面")
-    }
-
-    return cachedToken || null
+    console.log("[Storage] [ERROR] 未找到 token")
+    console.log("[Storage] [TIP] 请访问并登录 88code.org，然后刷新页面")
+    return null
   } catch (error) {
     console.error("[Storage] 读取 token 失败:", error)
     return null
@@ -258,6 +270,20 @@ export async function saveAuthToken(token: string): Promise<void> {
     await storage.set("authToken", token)
   } catch (error) {
     console.error("[Storage] 保存 authToken 失败:", error)
+  }
+}
+
+/**
+ * 从扩展 storage 直接读取 authToken
+ * 用于 background worker 等无法访问网站 localStorage 的场景
+ */
+export async function getAuthTokenFromStorage(): Promise<string | null> {
+  try {
+    const token = await storage.get("authToken")
+    return token ? cleanToken(token as string) : null
+  } catch (error) {
+    console.error("[Storage] 从 storage 读取 token 失败:", error)
+    return null
   }
 }
 
