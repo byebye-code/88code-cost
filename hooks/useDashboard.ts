@@ -11,9 +11,8 @@
 import { useEffect, useState, useCallback } from "react"
 
 import { fetchDashboard } from "~/lib/api/client"
-import { getCacheData, setCacheData, storage } from "~/lib/storage"
+import { getCacheData, setCacheData } from "~/lib/storage"
 import type { DashboardData } from "~/types"
-import { browserAPI } from "~/lib/browser-api"
 
 const CACHE_KEY = "dashboard_cache"
 
@@ -83,7 +82,7 @@ export function useDashboard(shouldFetch: boolean) {
     }
   }
 
-  // 手动刷新：通知 background worker 重新获取数据
+  // 手动刷新：直接调用 API 获取最新数据
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -92,34 +91,21 @@ export function useDashboard(shouldFetch: boolean) {
     try {
       log("开始手动刷新...")
 
-      // 方式1: 通知 background worker 刷新（推荐）
-      const response = await browserAPI.runtime.sendMessage({
-        action: "refreshData"
-      })
+      // 直接调用 API（避免依赖 background worker，解决 Service Worker 挂起问题）
+      const apiResponse = await fetchDashboard()
+      const duration = Date.now() - refreshStartTime
 
-      if (response?.success) {
-        const duration = Date.now() - refreshStartTime
-        log(`已通知 background worker 刷新数据，耗时 ${duration}ms`)
-        // Background worker 会更新 storage，触发 storage.watch 自动更新 UI
+      if (apiResponse.success && apiResponse.data) {
+        log(`✅ 刷新成功，耗时 ${duration}ms`)
+        setDashboard(apiResponse.data)
+        await setCacheData(CACHE_KEY, apiResponse.data)
       } else {
-        // 方式2: 降级到直接 API 调用（background worker 不可用时）
-        warn("Background worker 不可用，降级到直接 API 调用")
-        const apiStartTime = Date.now()
-        const apiResponse = await fetchDashboard()
-        const apiDuration = Date.now() - apiStartTime
-
-        if (apiResponse.success && apiResponse.data) {
-          log(`直接 API 调用成功，耗时 ${apiDuration}ms`)
-          setDashboard(apiResponse.data)
-          await setCacheData(CACHE_KEY, apiResponse.data)
-        } else {
-          warn(`API 调用失败: ${apiResponse.message}`)
-          setError(apiResponse.message || "获取统计信息失败")
-        }
+        warn(`⚠️ 刷新失败: ${apiResponse.message}`)
+        setError(apiResponse.message || "获取统计信息失败")
       }
     } catch (err) {
       const duration = Date.now() - refreshStartTime
-      error(`刷新失败，耗时 ${duration}ms:`, err)
+      error(`❌ 刷新异常，耗时 ${duration}ms:`, err)
       setError(err instanceof Error ? err.message : "未知错误")
     } finally {
       setLoading(false)
@@ -131,21 +117,8 @@ export function useDashboard(shouldFetch: boolean) {
     loadFromCache()
   }, [shouldFetch])
 
-  // 监听 storage 变化，自动更新 UI
-  useEffect(() => {
-    if (!shouldFetch) return
-
-    const unwatch = storage.watch({
-      [CACHE_KEY]: (change) => {
-        log("检测到缓存更新，自动刷新 UI")
-        loadFromCache()
-      }
-    })
-
-    return () => {
-      unwatch()
-    }
-  }, [shouldFetch])
+  // 不再监听 storage 变化（已移除 background worker 的定期数据获取）
+  // 数据刷新完全由 popup 的手动刷新和自动刷新定时器控制
 
   return {
     dashboard,

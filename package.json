@@ -1,7 +1,7 @@
 {
   "name": "88code-cost",
   "displayName": "88Code Cost",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "88Code Cost - 智能额度监控工具，实时追踪套餐使用情况并自动重置",
   "author": "88Code Team",
   "keywords": [
@@ -70,24 +70,6 @@
     "host_permissions": [
       "https://www.88code.org/*"
     ],
-    "icons": {
-      "16": "../assets/logo.png",
-      "32": "../assets/logo.png",
-      "48": "../assets/logo.png",
-      "64": "../assets/logo.png",
-      "128": "../assets/logo.png"
-    },
-    "action": {
-      "default_icon": {
-        "16": "../assets/logo.png",
-        "32": "../assets/logo.png",
-        "48": "../assets/logo.png",
-        "64": "../assets/logo.png",
-        "128": "../assets/logo.png"
-      },
-      "default_title": "88Code Cost",
-      "default_popup": "./popup.html"
-    },
     "permissions": [
       "storage",
       "tabs",

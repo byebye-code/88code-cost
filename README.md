@@ -3,7 +3,7 @@
 <div align="center">
   <img src="assets/logo.png" alt="88Code Cost Logo" width="128" height="128">
   <p><strong>智能额度监控工具，让您的 88Code 套餐使用一目了然</strong></p>
-  <p>实时追踪套餐使用情况 · 智能自动重置 · 深色模式支持</p>
+  <p>🎯 智能预测可用天数 · 📊 实时追踪使用情况 · ⏰ 智能自动重置 · 🌙 深色模式支持</p>
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat&logo=google-chrome&logoColor=white)
@@ -44,6 +44,7 @@
 - 其他 Chromium 内核浏览器
 
 ### 核心特性
+- **智能预测** - PAYGO 套餐可用天数预测，合理规划额度使用
 - **跨浏览器兼容** - 统一的 API 适配层
 - **类型安全** - 完整的 TypeScript 类型定义
 - **高性能** - 5 分钟智能缓存机制
@@ -55,34 +56,62 @@
 ## 预览
 
 <div align="center">
-  <a href="assets/preview.png" target="_blank">
-    <img src="assets/preview-thumb.png"
-         alt="88Code Cost 预览"
-         width="460"
-         height="600"
-         loading="lazy"
-         style="max-width: 100%; height: auto; cursor: pointer;">
-  </a>
-  <p><em>简洁直观的界面设计，套餐使用情况一目了然</em></p>
+  <table style="margin: 0 auto;">
+    <tr>
+      <td align="center">
+        <a href="assets/preview.png" target="_blank">
+          <img src="assets/preview.png"
+               alt="88Code Cost 主界面"
+               width="350"
+               loading="lazy"
+               style="max-width: 100%; height: auto; cursor: pointer;">
+        </a>
+        <p><em>套餐概览</em></p>
+      </td>
+      <td align="center">
+        <a href="assets/preview_paygo.png" target="_blank">
+          <img src="assets/preview_paygo.png"
+               alt="PAYGO 套餐智能预测"
+               width="350"
+               loading="lazy"
+               style="max-width: 100%; height: auto; cursor: pointer;">
+        </a>
+        <p><em>🎯 智能预测可用天数</em></p>
+      </td>
+    </tr>
+  </table>
+  <p><strong>简洁直观的界面设计，套餐使用情况一目了然 · 智能预测让额度规划更轻松</strong></p>
 </div>
 
 ---
 
 ## 主要功能
 
-### 实时监控
+### 🎯 智能套餐预测（PAYGO 专属）
+- **预计可用天数**：基于当前余额和消费速率，智能预测套餐可用时长
+- **消费趋势分析**：直观的时间轴展示消费进度和剩余额度分布
+- **日均消费统计**：精确计算每日平均花费，帮助优化使用策略
+- **可视化时间线**：用渐变色条形图清晰展示已用天数、预计剩余天数
+- **实时更新**：消费数据实时同步，预测结果动态调整
+
+> 💡 **智能预测算法**：
+> 预计可用天数 = 当前余额 ÷ 日均消费
+> 日均消费 = 总消费额 ÷ 已使用天数
+
+### 📊 实时监控
 - 一键查看所有套餐的使用情况
 - 可视化进度条显示剩余额度
 - 自动计算重置倒计时
 
-### 智能重置
+### ⏰ 智能重置
 - **18:55** 智能重置策略：优先重置未满额的套餐，预留最后一次给晚间兜底
 - **23:55** 兜底重置：确保所有套餐额度不浪费
 - 浏览器后台自动执行，无需手动操作
 - Service Worker 通过 `chrome.alarms` 唤醒，确保在 MV3 环境中准时执行即使后台被挂起
 
-### 极致体验
+### ✨ 极致体验
 - 现代化界面设计，支持深色模式
+- 智能预测分析，合理规划额度使用
 - 轻量级，低内存占用
 - 自动刷新，数据实时同步
 - 安全认证，数据本地存储

@@ -536,9 +536,9 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
  */
 browserAPI.runtime.onStartup.addListener(() => {
   backgroundLogger.info("扩展启动")
-  startDataFetchService()
+  // startDataFetchService()  // 已禁用：popup 直接调用 API
   startScheduledResetService()
-  executeAllTasks()
+  // executeAllTasks()  // 已禁用：popup 直接调用 API
 })
 
 /**
@@ -546,9 +546,9 @@ browserAPI.runtime.onStartup.addListener(() => {
  */
 browserAPI.runtime.onInstalled.addListener((details) => {
   backgroundLogger.info(`扩展${details.reason === "install" ? "首次安装" : "已更新"}`)
-  startDataFetchService()
+  // startDataFetchService()  // 已禁用：popup 直接调用 API
   startScheduledResetService()
-  executeAllTasks()
+  // executeAllTasks()  // 已禁用：popup 直接调用 API
 })
 
 /**
@@ -562,15 +562,16 @@ browserAPI.runtime.onSuspend.addListener(() => {
 // ============ 初始化 ============
 
 backgroundLogger.info("Service Worker 初始化完成")
-backgroundLogger.info("✓ 数据预取服务：每30秒")
+backgroundLogger.info("✓ Token 同步：通过 Content Script 从网站获取")
 backgroundLogger.info("✓ 定时重置服务：18:55 和 23:55")
+backgroundLogger.info("✓ 数据获取：popup 直接调用 API")
 
-// 启动两个服务
-startDataFetchService()
+// 只启动定时重置服务
+// startDataFetchService()  // 已禁用：popup 直接调用 API
 startScheduledResetService()
 
-// 立即执行一次数据获取
-executeAllTasks()
+// 不再立即执行数据获取
+// executeAllTasks()  // 已禁用：popup 直接调用 API
 
 // 导出空对象以满足 TypeScript 模块要求
 export {}
