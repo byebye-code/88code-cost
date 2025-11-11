@@ -20,6 +20,7 @@ import {
   resetCredits
 } from "~/lib/api/client"
 import { shouldResetSubscription } from "~/lib/services/reset-strategy"
+import { canReset } from "~/lib/services/scheduledReset"
 import { browserAPI } from "~/lib/browser-api"
 import {
   setCacheData,
@@ -131,16 +132,18 @@ function stopDataFetchService() {
 // ============ 定时重置服务 ============
 
 const SETTINGS_KEY = "app_settings"
-const LAST_EXECUTION_KEY = "last_execution_time"
 
-// 固定执行时间：18:55 和 23:55
-const RESET_TIMES = [
-  { hour: 18, minute: 55 },
-  { hour: 23, minute: 55 }
-]
+// 固定执行窗口及策略
+const RESET_WINDOWS = [
+  { hour: 18, minute: 55, requiredResetTimes: 2, label: "evening" },
+  { hour: 23, minute: 55, requiredResetTimes: 1, label: "night" }
+] as const
+
+type ResetWindow = typeof RESET_WINDOWS[number]
 
 const RESET_ALARM_PREFIX = "scheduledReset"
 const DAILY_MINUTES = 24 * 60
+const RESET_WINDOW_DURATION_MS = 5 * 60 * 1000 // 5分钟窗口
 
 function getResetAlarmName(hour: number, minute: number) {
   return `${RESET_ALARM_PREFIX}-${hour}-${minute}`
@@ -158,13 +161,74 @@ function getNextExecutionTimestamp(hour: number, minute: number) {
   return target.getTime()
 }
 
+function getResetWindowByTime(hour: number, minute: number): ResetWindow | null {
+  return RESET_WINDOWS.find(
+    (window) => window.hour === hour && window.minute === minute
+  ) ?? null
+}
+
+function getResetWindowFromTrigger(trigger?: string): ResetWindow | null {
+  if (!trigger || !trigger.startsWith(RESET_ALARM_PREFIX)) {
+    return null
+  }
+
+  const parts = trigger.split("-")
+  if (parts.length < 3) return null
+
+  const hour = Number(parts[1])
+  const minute = Number(parts[2])
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return null
+  }
+
+  return getResetWindowByTime(hour, minute)
+}
+
+function getWindowStartDate(window: ResetWindow, reference: Date): Date {
+  const start = new Date(reference)
+  const referenceHour = reference.getHours()
+  const referenceMinute = reference.getMinutes()
+
+  if (
+    referenceHour < window.hour ||
+    (referenceHour === window.hour && referenceMinute < window.minute)
+  ) {
+    start.setDate(start.getDate() - 1)
+  }
+
+  start.setHours(window.hour, window.minute, 0, 0)
+  return start
+}
+
+function hasResetThisWindow(subscription: Subscription, windowStart: Date): boolean {
+  if (!subscription.lastCreditReset) {
+    return false
+  }
+  const lastReset = new Date(subscription.lastCreditReset)
+  return lastReset >= windowStart
+}
+
+function getWindowEndDate(windowStart: Date): Date {
+  return new Date(windowStart.getTime() + RESET_WINDOW_DURATION_MS)
+}
+
+function scheduleCooldownAlarm(window: ResetWindow, cooldownEnd: Date) {
+  const when = Math.max(cooldownEnd.getTime(), Date.now() + 1000)
+  const alarmName = `${RESET_ALARM_PREFIX}Cooldown-${window.hour}-${window.minute}-${when}`
+  backgroundLogger.info(
+    `为窗口 ${window.hour}:${String(window.minute).padStart(2, "0")} 注册冷却闹钟 (${new Date(when).toLocaleTimeString()})`
+  )
+  browserAPI.alarms.create(alarmName, { when })
+}
+
 function scheduleResetAlarms() {
-  RESET_TIMES.forEach(({ hour, minute }) => {
+  RESET_WINDOWS.forEach(({ hour, minute, label }) => {
     const alarmName = getResetAlarmName(hour, minute)
     const nextRun = getNextExecutionTimestamp(hour, minute)
 
     backgroundLogger.info(
-      `注册定时闹钟 ${alarmName} -> ${new Date(nextRun).toLocaleString()}`
+      `注册定时闹钟 ${alarmName} (${label}) -> ${new Date(nextRun).toLocaleString()}`
     )
 
     browserAPI.alarms.create(alarmName, {
@@ -226,22 +290,28 @@ async function getSubscriptions(token: string): Promise<Subscription[]> {
 }
 
 /**
- * 检查当前时间是否在执行窗口
- */
-function isInExecutionWindow(hour: number, minute: number): boolean {
-  return RESET_TIMES.some(
-    (time) => time.hour === hour && time.minute === minute
-  )
-}
-
-/**
  * 执行重置
  */
 async function performReset(
   subscription: Subscription,
-  reason: string
+  reason: string,
+  requiredResetTimes: number,
+  windowStart?: Date | null
 ): Promise<void> {
   try {
+    if (windowStart && hasResetThisWindow(subscription, windowStart)) {
+      backgroundLogger.info(`⊗ ${subscription.subscriptionPlanName} 本时间窗口已重置，跳过`)
+      return
+    }
+
+    const eligibility = canReset(subscription, requiredResetTimes)
+    if (!eligibility.canReset) {
+      backgroundLogger.info(
+        `⊗ ${subscription.subscriptionPlanName} 校验未通过，跳过: ${eligibility.reason ?? "不满足重置条件"}`
+      )
+      return
+    }
+
     backgroundLogger.info(
       `开始重置订阅 ${subscription.subscriptionPlanName}`
     )
@@ -286,12 +356,33 @@ async function performScheduledResetCheck(options: ScheduledResetOptions = {}) {
   )
 
   try {
-    // 1. 检查是否在执行窗口
-    if (!options.skipWindowCheck && !isInExecutionWindow(currentHour, currentMinute)) {
+    const windowFromTrigger = getResetWindowFromTrigger(options.trigger)
+    const fallbackWindow = getResetWindowByTime(currentHour, currentMinute)
+    const windowInfo = windowFromTrigger ?? fallbackWindow
+
+    if (!windowInfo) {
+      if (!options.skipWindowCheck) {
+        backgroundLogger.info(`当前不在计划的重置窗口，跳过`)
+      } else {
+        backgroundLogger.warn("无法识别触发器对应的重置窗口，跳过执行")
+      }
       return
     }
 
-    backgroundLogger.info(`✓ 在执行窗口内: ${timeKey}`)
+    if (
+      !options.skipWindowCheck &&
+      (windowInfo.hour !== currentHour || windowInfo.minute !== currentMinute)
+    ) {
+      backgroundLogger.info(`当前不在 ${windowInfo.hour}:${String(windowInfo.minute).padStart(2, "0")} 窗口内，跳过`)
+      return
+    }
+
+    const windowLabel = `${windowInfo.hour}:${String(windowInfo.minute).padStart(2, "0")}`
+    const windowStart = getWindowStartDate(windowInfo, now)
+    const windowEnd = getWindowEndDate(windowStart)
+    const requiredResetTimes = windowInfo.requiredResetTimes
+
+    backgroundLogger.info(`✓ 在执行窗口内: ${windowLabel}`)
 
     // 2. 获取设置
     const settings = await getSettings()
@@ -302,24 +393,14 @@ async function performScheduledResetCheck(options: ScheduledResetOptions = {}) {
       return
     }
 
-    // 4. 检查是否已在本小时内执行过
-    const lastExecution = await storage.get(LAST_EXECUTION_KEY)
-    if (lastExecution) {
-      const lastTime = JSON.parse(lastExecution)
-      if (lastTime.hour === currentHour && lastTime.date === now.toDateString()) {
-        backgroundLogger.info(`本小时 (${currentHour}:00) 已执行过，跳过`)
-        return
-      }
-    }
-
-    // 5. 获取 Token
+    // 4. 获取 Token
     const token = await getAuthToken()
     if (!token) {
       backgroundLogger.info("未获取到认证 Token，跳过")
       return
     }
 
-    // 6. 获取订阅列表
+    // 5. 获取订阅列表
     const subscriptions = await getSubscriptions(token)
     if (subscriptions.length === 0) {
       backgroundLogger.info("没有活跃的订阅，跳过")
@@ -328,28 +409,55 @@ async function performScheduledResetCheck(options: ScheduledResetOptions = {}) {
 
     backgroundLogger.info(`找到 ${subscriptions.length} 个活跃订阅，开始分析...`)
 
-    // 7. 智能判断哪些订阅需要重置
+    // 6. 智能判断哪些订阅需要重置
     const resetTasks: Array<{ subscription: Subscription; reason: string }> = []
     const skipTasks: Array<{ subscription: Subscription; reason: string }> = []
 
     subscriptions.forEach((subscription) => {
-      const { shouldReset, reason } = shouldResetSubscription(subscription, currentHour)
+      const alreadyResetReason = windowStart && hasResetThisWindow(subscription, windowStart)
+        ? "本窗口已完成重置"
+        : null
 
-      if (shouldReset) {
-        resetTasks.push({ subscription, reason })
-        backgroundLogger.info(`✓ 将重置：${subscription.subscriptionPlanName} - ${reason}`)
-      } else {
+      if (alreadyResetReason) {
+        skipTasks.push({ subscription, reason: alreadyResetReason })
+        backgroundLogger.info(`⊗ 跳过重置：${subscription.subscriptionPlanName} - ${alreadyResetReason}`)
+        return
+      }
+
+      const strategyDecision = shouldResetSubscription(subscription, windowInfo.hour)
+      if (!strategyDecision.shouldReset) {
+        skipTasks.push({ subscription, reason: strategyDecision.reason })
+        backgroundLogger.info(`⊗ 跳过重置：${subscription.subscriptionPlanName} - ${strategyDecision.reason}`)
+        return
+      }
+
+      const eligibility = canReset(subscription, requiredResetTimes)
+      if (!eligibility.canReset) {
+        const reason = eligibility.reason ?? "不满足重置条件"
+        if (eligibility.cooldownEnd) {
+          const cooldownEndDate = new Date(eligibility.cooldownEnd)
+          if (cooldownEndDate > now && cooldownEndDate <= windowEnd) {
+            scheduleCooldownAlarm(windowInfo, cooldownEndDate)
+            backgroundLogger.info(
+              `⏳ ${subscription.subscriptionPlanName} 冷却将在窗口内结束（${cooldownEndDate.toLocaleTimeString()}），已预约复查`
+            )
+          }
+        }
         skipTasks.push({ subscription, reason })
         backgroundLogger.info(`⊗ 跳过重置：${subscription.subscriptionPlanName} - ${reason}`)
+        return
       }
+
+      resetTasks.push({ subscription, reason: strategyDecision.reason })
+      backgroundLogger.info(`✓ 将重置：${subscription.subscriptionPlanName} - ${strategyDecision.reason}`)
     })
 
     backgroundLogger.info(`统计：需重置 ${resetTasks.length} 个，跳过 ${skipTasks.length} 个`)
 
-    // 8. 执行重置
+    // 7. 执行重置
     if (resetTasks.length > 0) {
       const resetPromises = resetTasks.map(({ subscription, reason }) => {
-        return performReset(subscription, reason)
+        return performReset(subscription, reason, requiredResetTimes, windowStart)
       })
 
       await Promise.all(resetPromises)
@@ -357,18 +465,6 @@ async function performScheduledResetCheck(options: ScheduledResetOptions = {}) {
     } else {
       backgroundLogger.info(`无需重置任何订阅`)
     }
-
-    // 9. 记录执行时间
-    await storage.set(
-      LAST_EXECUTION_KEY,
-      JSON.stringify({
-        hour: currentHour,
-        date: now.toDateString(),
-        timestamp: now.toISOString(),
-        resetCount: resetTasks.length,
-        skipCount: skipTasks.length
-      })
-    )
 
   } catch (err) {
     backgroundLogger.error("定时重置检查失败:", err)
@@ -380,7 +476,7 @@ async function performScheduledResetCheck(options: ScheduledResetOptions = {}) {
  */
 function startScheduledResetService() {
   backgroundLogger.info("启动定时重置服务")
-  backgroundLogger.info(`执行时间: ${RESET_TIMES.map(t => `${t.hour}:${String(t.minute).padStart(2, '0')}`).join(", ")}`)
+  backgroundLogger.info(`执行时间: ${RESET_WINDOWS.map(t => `${t.hour}:${String(t.minute).padStart(2, '0')}`).join(", ")}`)
 
   scheduleResetAlarms()
   performScheduledResetCheck({ trigger: "init" })

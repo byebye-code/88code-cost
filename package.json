@@ -70,6 +70,24 @@
     "host_permissions": [
       "https://www.88code.org/*"
     ],
+    "icons": {
+      "16": "../assets/logo.png",
+      "32": "../assets/logo.png",
+      "48": "../assets/logo.png",
+      "64": "../assets/logo.png",
+      "128": "../assets/logo.png"
+    },
+    "action": {
+      "default_icon": {
+        "16": "../assets/logo.png",
+        "32": "../assets/logo.png",
+        "48": "../assets/logo.png",
+        "64": "../assets/logo.png",
+        "128": "../assets/logo.png"
+      },
+      "default_title": "88Code Cost",
+      "default_popup": "./popup.html"
+    },
     "permissions": [
       "storage",
       "tabs",

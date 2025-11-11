@@ -1,7 +1,7 @@
 # 88Code Cost
 
 <div align="center">
-  <img src="assets/icon48.png" alt="88Code Cost Logo" width="128" height="128">
+  <img src="assets/logo.png" alt="88Code Cost Logo" width="128" height="128">
   <p><strong>智能额度监控工具，让您的 88Code 套餐使用一目了然</strong></p>
   <p>实时追踪套餐使用情况 · 智能自动重置 · 深色模式支持</p>
 
@@ -445,8 +445,9 @@ pnpm test
 ```
 88code-cost/
 ├── assets/                 # 静态资源
-│   ├── icon*.png          # 扩展图标
-│   └── logo.png           # Logo
+│   ├── logo.png           # 扩展图标 & Logo
+│   ├── preview.png        # 截图（大图）
+│   └── preview-thumb.png  # 截图（缩略图）
 ├── components/            # React 组件
 │   ├── RefreshButton.tsx  # 刷新按钮
 │   ├── Skeleton.tsx       # 骨架屏

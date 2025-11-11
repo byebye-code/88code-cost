@@ -5,6 +5,8 @@
 
 import type { Subscription } from "~/types"
 
+export const RESET_COOLDOWN_MS = 5 * 60 * 60 * 1000 // 5 小时
+
 // 定时重置配置
 export const RESET_TIMES = {
   FIRST: { hour: 18, minute: 55, requiredResetTimes: 2 },  // 18:55，需要 ≥2 次
@@ -95,9 +97,13 @@ export function formatCountdown(milliseconds: number): string {
 /**
  * 检查是否满足重置条件
  */
-export function canReset(subscription: Subscription, requiredResetTimes: number): {
+export function canReset(
+  subscription: Subscription,
+  requiredResetTimes: number
+): {
   canReset: boolean
   reason?: string
+  cooldownEnd?: number
 } {
   const { currentCredits, subscriptionPlan, resetTimes, lastCreditReset } = subscription
   const creditLimit = subscriptionPlan.creditLimit
@@ -120,13 +126,17 @@ export function canReset(subscription: Subscription, requiredResetTimes: number)
   // 检查冷却时间（24小时）
   if (lastCreditReset) {
     const lastResetTime = new Date(lastCreditReset).getTime()
-    const cooldownTime = 24 * 60 * 60 * 1000 // 24小时
     const timeSinceLastReset = Date.now() - lastResetTime
 
-    if (timeSinceLastReset < cooldownTime) {
-      const remainingCooldown = cooldownTime - timeSinceLastReset
+    if (timeSinceLastReset < RESET_COOLDOWN_MS) {
+      const cooldownEnd = lastResetTime + RESET_COOLDOWN_MS
+      const remainingCooldown = cooldownEnd - Date.now()
       const remainingHours = Math.ceil(remainingCooldown / (60 * 60 * 1000))
-      return { canReset: false, reason: `冷却中（剩余 ${remainingHours} 小时）` }
+      return {
+        canReset: false,
+        reason: `冷却中（剩余 ${Math.max(1, remainingHours)} 小时）`,
+        cooldownEnd
+      }
     }
   }
 
