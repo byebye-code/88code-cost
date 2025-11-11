@@ -44,6 +44,7 @@ export function SubscriptionCard({
   const [isTogglingAutoReset, setIsTogglingAutoReset] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // 定时重置倒计时
   const scheduledCountdown = useScheduledResetCountdown()
@@ -70,16 +71,30 @@ export function SubscriptionCard({
     setAutoResetEnabled(subscription.autoResetWhenZero || false)
   }, [subscription.autoResetWhenZero])
 
+  // 自动清除成功消息（3秒后）
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null)
+      }, 3000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [successMessage])
+
   // 切换自动重置
   const handleToggleAutoReset = async () => {
     setIsTogglingAutoReset(true)
     setError(null)
+    setSuccessMessage(null)
     try {
       const newValue = !autoResetEnabled
       const result = await toggleAutoReset(subscription.id, newValue)
       if (result.success) {
         setAutoResetEnabled(newValue)
-        console.log(`[SubscriptionCard] 自动重置已${newValue ? "启用" : "禁用"}`)
+        const message = `自动重置已${newValue ? "启用" : "禁用"}`
+        setSuccessMessage(message)
+        console.log(`[SubscriptionCard] ${message}`)
         // 刷新数据
         if (onRefresh) {
           setTimeout(() => onRefresh(), 500)
@@ -114,15 +129,17 @@ export function SubscriptionCard({
     }
     setIsResetting(true)
     setError(null)
+    setSuccessMessage(null)
     try {
       const result = await resetCredits(subscription.id)
       if (result.success) {
+        setSuccessMessage("额度重置成功")
         console.log(`[SubscriptionCard] 额度重置成功`)
         // 立即更新倒计时状态
         setResetCountdown(getResetCountdown(new Date().toISOString()))
-        // 刷新数据（延长到1.5秒，等待服务器处理和缓存更新）
+        // 刷新数据（优化为800ms）
         if (onRefresh) {
-          setTimeout(() => onRefresh(), 1500)
+          setTimeout(() => onRefresh(), 800)
         }
       } else {
         setError(result.message || "重置失败")
@@ -350,7 +367,11 @@ export function SubscriptionCard({
                 </div>
               ) : (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  近 3 天内几乎没有消耗，暂无法计算趋势
+                  {!paygoUsageStats?.hasData
+                    ? "暂无消费数据"
+                    : paygoUsageStats.availableDays < 3
+                    ? `数据不足（当前 ${paygoUsageStats.availableDays} 天，需至少 3 天）`
+                    : "近 3 天内几乎没有消耗，暂无法计算趋势"}
                 </p>
               )}
             </div>
@@ -421,6 +442,13 @@ export function SubscriptionCard({
             {error && (
               <div className="rounded-md bg-destructive/10 p-1.5">
                 <p className="text-xs text-destructive">{error}</p>
+              </div>
+            )}
+
+            {/* 成功提示 */}
+            {successMessage && (
+              <div className="rounded-md bg-green-500/10 p-1.5">
+                <p className="text-xs text-green-600 dark:text-green-400">{successMessage}</p>
               </div>
             )}
 

@@ -32,6 +32,7 @@ if (process.env.NODE_ENV === "development") {
 
 function IndexPopup() {
   const [currentView, setCurrentView] = useState<ViewType>(ViewType.MAIN)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const { tokenData, loading: authLoading, retry } = useAuth()
   const { settings, loading: settingsLoading, saveSettings, resetSettings } = useSettings()
 
@@ -58,18 +59,30 @@ function IndexPopup() {
   const {
     stats: paygoUsageStats,
     loading: paygoUsageLoading,
-    error: paygoUsageError
+    error: paygoUsageError,
+    refresh: refreshPaygoUsage
   } = usePaygoUsageStats(tokenData.isValid && hasPaygo)
 
-  const loading = authLoading || dashboardLoading || subscriptionsLoading
+  const loading = authLoading || dashboardLoading || subscriptionsLoading || isRefreshing
 
   // 刷新所有数据 - 使用 useCallback 避免不必要的依赖更新
-  const handleRefresh = useCallback(() => {
-    if (tokenData.isValid) {
-      refreshDashboard()
-      refreshSubscriptions()
+  const handleRefresh = useCallback(async () => {
+    // 防止重复刷新
+    if (!tokenData.isValid || isRefreshing) {
+      return
     }
-  }, [tokenData.isValid, refreshDashboard, refreshSubscriptions])
+
+    setIsRefreshing(true)
+    try {
+      await Promise.all([
+        refreshDashboard(),
+        refreshSubscriptions(),
+        hasPaygo ? refreshPaygoUsage() : Promise.resolve()
+      ])
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [tokenData.isValid, isRefreshing, refreshDashboard, refreshSubscriptions, hasPaygo, refreshPaygoUsage])
 
   // 打开设置
   const handleOpenSettings = () => {
@@ -124,10 +137,13 @@ function IndexPopup() {
       // 直接调用刷新函数，避免依赖 handleRefresh 引用
       refreshDashboard()
       refreshSubscriptions()
+      if (hasPaygo) {
+        refreshPaygoUsage()  // 自动刷新 PAYGO 用量统计
+      }
     }, interval)
 
     return () => clearInterval(timer)
-  }, [tokenData.isValid, settings.autoRefreshEnabled, settings.autoRefreshInterval, refreshDashboard, refreshSubscriptions])
+  }, [tokenData.isValid, settings.autoRefreshEnabled, settings.autoRefreshInterval, refreshDashboard, refreshSubscriptions, hasPaygo, refreshPaygoUsage])
 
   // 检查是否有符合规则的套餐（非 PAYGO、活跃中、额度未满、有剩余重置次数）
   const hasEligibleSubscriptions = (): boolean => {

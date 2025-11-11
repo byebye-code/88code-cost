@@ -8,8 +8,9 @@
  *
  * 工作机制：
  * 1. 检测当前是否在重置窗口内
- * 2. 如果在窗口内且有套餐需要重置，追踪其冷却时间
- * 3. 到达重置时间后刷新一次，不再重复检测
+ * 2. 进入窗口时立即执行一次统一刷新（无延迟）
+ * 3. 刷新后追踪窗口内的冷却时间
+ * 4. 到达冷却结束时间后触发重置，不再重复检测
  */
 
 import { useEffect, useRef, useState } from "react"
@@ -218,13 +219,10 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
 
         // 检查是否有符合规则的套餐（非PAYGO、活跃中）
         if (config.hasEligibleSubscriptions()) {
-          // 随机延迟 0-15 秒
-          const randomDelay = Math.floor(Math.random() * 15 * 1000)
-          resetLogger.info(
-            `检测到符合规则的套餐，将在 ${randomDelay / 1000} 秒后执行统一刷新`
-          )
+          resetLogger.info("检测到符合规则的套餐，立即执行统一刷新")
 
-          setTimeout(async () => {
+          // 立即执行窗口开始刷新
+          ;(async () => {
             resetLogger.info("执行窗口开始的统一刷新")
             try {
               await config.onWindowStartRefresh()
@@ -237,7 +235,7 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
               resetLogger.error("窗口刷新失败:", error)
               windowStartRefreshDoneRef.current = true
             }
-          }, randomDelay)
+          })()
         } else {
           resetLogger.info("无符合规则的套餐，跳过窗口统一刷新")
           windowStartRefreshDoneRef.current = true

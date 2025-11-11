@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { fetchUsageTrend } from "~/lib/api/client"
 
@@ -33,31 +33,28 @@ export function usePaygoUsageStats(enabled: boolean) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // 提取加载逻辑为独立函数，支持手动刷新
+  const load = useCallback(async () => {
     if (!enabled) return
 
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      const response = await fetchUsageTrend(30, "day")
-      if (cancelled) return
+    setLoading(true)
+    setError(null)
+    const response = await fetchUsageTrend(30, "day")
 
-      if (response.success && response.data) {
-        const sorted = [...response.data].sort((a, b) => a.date.localeCompare(b.date))
-        setCosts(sorted.map((item) => Number(item.cost || 0)))
-      } else {
-        setError(response.message || "获取用量趋势失败")
-        setCosts([])
-      }
-      setLoading(false)
+    if (response.success && response.data) {
+      const sorted = [...response.data].sort((a, b) => a.date.localeCompare(b.date))
+      setCosts(sorted.map((item) => Number(item.cost || 0)))
+    } else {
+      setError(response.message || "获取用量趋势失败")
+      setCosts([])
     }
-
-    load()
-    return () => {
-      cancelled = true
-    }
+    setLoading(false)
   }, [enabled])
+
+  // 初始加载
+  useEffect(() => {
+    load()
+  }, [enabled, load])
 
   const stats = useMemo<PaygoUsageStats>(() => {
     if (!enabled || costs.length === 0) {
@@ -76,6 +73,7 @@ export function usePaygoUsageStats(enabled: boolean) {
   return {
     stats,
     loading,
-    error
+    error,
+    refresh: load  // 暴露 refresh 函数，支持手动刷新
   }
 }
