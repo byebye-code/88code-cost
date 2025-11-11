@@ -11,6 +11,7 @@ export const API_ENDPOINTS = {
   LOGIN_INFO: "/admin-api/login/getLoginInfo",
   SUBSCRIPTIONS: "/admin-api/cc-admin/system/subscription/my",
   DASHBOARD: "/admin-api/cc-admin/user/dashboard",
+  USAGE_TREND: "/admin-api/cc-admin/user/usage-trend",
   AUTO_RESET: "/admin-api/cc-admin/system/subscription/my/auto-reset",
   RESET_CREDITS: "/admin-api/cc-admin/system/subscription/my/reset-credits"
 } as const

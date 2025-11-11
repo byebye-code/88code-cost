@@ -8,7 +8,8 @@ import type {
   Code88Response,
   DashboardData,
   LoginInfo,
-  Subscription
+  Subscription,
+  UsageTrendPoint
 } from "~/types"
 
 import { getAuthToken, getAuthTokenFromStorage } from "../storage"
@@ -183,7 +184,8 @@ async function request<T>(
 
     const response = await fetch(url, {
       ...options,
-      headers: finalHeaders
+      headers: finalHeaders,
+      cache: 'no-cache'  // 防止浏览器缓存响应，确保获取最新数据
     })
 
     const responseText = await response.text()
@@ -259,6 +261,17 @@ export async function fetchSubscriptions(): Promise<
 export async function fetchDashboard(): Promise<ApiResponse<DashboardData>> {
   const url = getApiUrl(API_ENDPOINTS.DASHBOARD)
   return await request<DashboardData>(url)
+}
+
+/**
+ * 获取用量趋势（默认 30 天、按天粒度）
+ */
+export async function fetchUsageTrend(
+  days = 30,
+  granularity: "day" | "week" | "month" = "day"
+): Promise<ApiResponse<UsageTrendPoint[]>> {
+  const url = `${getApiUrl(API_ENDPOINTS.USAGE_TREND)}?days=${days}&granularity=${granularity}`
+  return await request<UsageTrendPoint[]>(url)
 }
 
 /**

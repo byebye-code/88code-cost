@@ -18,6 +18,7 @@ import { useAuth } from "./hooks/useAuth"
 import { useDashboard } from "./hooks/useDashboard"
 import { useSubscriptions } from "./hooks/useSubscriptions"
 import { useSettings } from "./hooks/useSettings"
+import { usePaygoUsageStats } from "./hooks/usePaygoUsageStats"
 import packageJson from "./package.json"
 import { useResetWindowTracker } from "./hooks/useResetWindowTracker"
 import { browserAPI } from "./lib/browser-api"
@@ -48,6 +49,17 @@ function IndexPopup() {
     error: subscriptionsError,
     refresh: refreshSubscriptions
   } = useSubscriptions(tokenData.isValid)
+
+  const hasPaygo = useMemo(
+    () => subscriptions.some((sub) => sub.subscriptionPlanName.includes("PAYGO")),
+    [subscriptions]
+  )
+
+  const {
+    stats: paygoUsageStats,
+    loading: paygoUsageLoading,
+    error: paygoUsageError
+  } = usePaygoUsageStats(tokenData.isValid && hasPaygo)
 
   const loading = authLoading || dashboardLoading || subscriptionsLoading
 
@@ -300,6 +312,9 @@ function IndexPopup() {
                         key={subscription.id}
                         subscription={subscription}
                         onRefresh={handleRefresh}
+                        paygoUsageStats={paygoUsageStats}
+                        paygoUsageLoading={paygoUsageLoading}
+                        paygoUsageError={paygoUsageError}
                       />
                     ))}
                   </div>

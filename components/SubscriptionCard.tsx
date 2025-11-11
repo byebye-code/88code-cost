@@ -3,7 +3,7 @@
  * 显示单个套餐的信息
  */
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 
 import type { Subscription } from "~/types"
 import { resetCredits, toggleAutoReset } from "~/lib/api/client"
@@ -15,13 +15,23 @@ import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Switch } from "~/components/ui/switch"
 import { Progress } from "~/components/ui/progress"
+import type { PaygoUsageStats } from "~/hooks/usePaygoUsageStats"
 
 interface SubscriptionCardProps {
   subscription: Subscription
   onRefresh?: () => void
+  paygoUsageStats?: PaygoUsageStats
+  paygoUsageLoading?: boolean
+  paygoUsageError?: string | null
 }
 
-export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardProps) {
+export function SubscriptionCard({
+  subscription,
+  onRefresh,
+  paygoUsageStats,
+  paygoUsageLoading,
+  paygoUsageError
+}: SubscriptionCardProps) {
   const { subscriptionPlan } = subscription
   const creditLimit = subscriptionPlan.creditLimit
   const currentCredits = subscription.currentCredits
@@ -110,9 +120,9 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
         console.log(`[SubscriptionCard] 额度重置成功`)
         // 立即更新倒计时状态
         setResetCountdown(getResetCountdown(new Date().toISOString()))
-        // 刷新数据
+        // 刷新数据（延长到1.5秒，等待服务器处理和缓存更新）
         if (onRefresh) {
-          setTimeout(() => onRefresh(), 500)
+          setTimeout(() => onRefresh(), 1500)
         }
       } else {
         setError(result.message || "重置失败")
@@ -186,6 +196,61 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
     }
   }
 
+  const isPaygo = subscription.subscriptionPlanName.includes("PAYGO")
+  const PAYGO_BASE_DAYS = 30
+  const paygoReference = (() => {
+    if (!paygoUsageStats?.hasData) return null
+    const available = paygoUsageStats.availableDays
+    if (available >= 30) return { days: 30, avg: paygoUsageStats.avg30 }
+    if (available >= 15) return { days: 15, avg: paygoUsageStats.avg15 }
+    if (available >= 7) return { days: 7, avg: paygoUsageStats.avg7 }
+    if (available >= 3) return { days: 3, avg: paygoUsageStats.avg3 }
+    return null
+  })()
+
+  const paygoAvgDailyCost = paygoReference?.avg ?? 0
+  const paygoReferenceDays = paygoReference?.days ?? 0
+
+  const paygoDaysRemaining =
+    isPaygo && paygoAvgDailyCost > 0 ? subscription.currentCredits / paygoAvgDailyCost : null
+
+  const paygoProgressRatio = paygoDaysRemaining
+    ? Math.min(paygoDaysRemaining, PAYGO_BASE_DAYS) / PAYGO_BASE_DAYS
+    : 0
+
+  const barRef = useRef<HTMLDivElement>(null)
+  const [paygoHover, setPaygoHover] = useState({
+    visible: false,
+    day: 0,
+    cost: 0,
+    left: 0
+  })
+
+  const handlePaygoMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!barRef.current) return
+    const rect = barRef.current.getBoundingClientRect()
+    const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1)
+    const day = ratio * PAYGO_BASE_DAYS
+    const cost = paygoAvgDailyCost * day
+    setPaygoHover({
+      visible: true,
+      day,
+      cost,
+      left: ratio * 100
+    })
+  }
+
+  const handlePaygoMouseLeave = () => {
+    setPaygoHover((prev) => ({ ...prev, visible: false }))
+  }
+
+  const PAYGO_MARKERS = [
+    { day: 3, key: "avg3", label: "3d" },
+    { day: 7, key: "avg7", label: "7d" },
+    { day: 15, key: "avg15", label: "15d" },
+    { day: 30, key: "avg30", label: "30d" }
+  ] as const
+
   return (
     <Card className="group transition-all duration-300 hover:shadow-md">
       <CardHeader className="p-4 pb-3">
@@ -212,39 +277,82 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
 
       <CardContent className="px-4 pb-4 pt-0 space-y-3">
         {/* PAYGO 套餐：余额制展示 */}
-        {subscription.subscriptionPlanName.includes("PAYGO") ? (
+        {isPaygo ? (
           <div className="space-y-3">
-            {/* 账户余额 - 大号显示 */}
-            <div className="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-4">
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm font-medium text-muted-foreground">账户余额</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-primary">${currentCredits.toFixed(2)}</span>
+            {/* 账户余额 - 精简单行设计 */}
+            <div className="flex items-baseline justify-between rounded-lg border border-gray-200 bg-white/80 px-3 py-2 dark:border-gray-800 dark:bg-gray-900/60">
+              <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                可用余额
+              </span>
+              <span className="text-2xl font-semibold text-gray-900 dark:text-white">
+                ${currentCredits.toFixed(2)}
+              </span>
+            </div>
+
+            {/* PAYGO 余额可用天数 */}
+            <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/70 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+              {paygoUsageLoading ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">正在计算最近用量...</p>
+              ) : paygoUsageError ? (
+                <p className="text-sm text-red-500 dark:text-red-300">{paygoUsageError}</p>
+              ) : paygoReference ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
+                    <span>预计可用
+                      <strong className="ml-1 text-green-600 dark:text-green-400">
+                        {paygoDaysRemaining.toFixed(1)} 天
+                      </strong>
+                    </span>
+                    {paygoAvgDailyCost > 0 && (
+                      <span>日均 ${paygoAvgDailyCost.toFixed(2)}</span>
+                    )}
+                  </div>
+
+                  <div
+                    className="relative h-3.5 rounded-full bg-gray-200 dark:bg-gray-800"
+                    ref={barRef}
+                    onMouseMove={handlePaygoMouseMove}
+                    onMouseLeave={handlePaygoMouseLeave}
+                  >
+                    <div
+                      className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-green-500 via-amber-400 to-rose-500"
+                      style={{ width: `${paygoProgressRatio * 100}%` }}
+                    />
+                    {PAYGO_MARKERS.map((marker) => (
+                      <div
+                        key={marker.day}
+                        className="group absolute top-0 h-full w-px bg-gray-400 dark:bg-gray-600"
+                        style={{ left: `${(marker.day / PAYGO_BASE_DAYS) * 100}%` }}
+                      >
+                        <span className={`absolute -top-4 -translate-x-1/2 text-[11px] ${
+                          paygoReferenceDays >= marker.day
+                            ? "text-gray-700 dark:text-gray-200"
+                            : "text-gray-400 dark:text-gray-600"
+                        }`}>
+                          {marker.label}
+                        </span>
+                      </div>
+                    ))}
+                    {paygoHover.visible && (
+                      <div
+                        className="pointer-events-none absolute -top-10 w-32 -translate-x-1/2 rounded-md bg-gray-900/90 px-2 py-1 text-center text-[11px] text-white shadow dark:bg-black/80"
+                        style={{ left: `${paygoHover.left}%` }}
+                      >
+                        ≈ {paygoHover.day.toFixed(1)}d · ${paygoHover.cost.toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                    <span>0d</span>
+                    <span>30d</span>
+                  </div>
                 </div>
-              </div>
-              {/* 余额状态指示器 - 基于绝对金额 */}
-              <div className="mt-3 flex items-center gap-2">
-                <div className={`h-2 flex-1 rounded-full ${
-                  currentCredits < 5
-                    ? 'bg-red-500 dark:bg-red-600'
-                    : currentCredits < 20
-                      ? 'bg-orange-500 dark:bg-orange-600'
-                      : currentCredits < 50
-                        ? 'bg-yellow-500 dark:bg-yellow-600'
-                        : 'bg-green-500 dark:bg-green-600'
-                }`} />
-                <span className={`text-xs font-medium ${
-                  currentCredits < 5
-                    ? 'text-red-600 dark:text-red-400'
-                    : currentCredits < 20
-                      ? 'text-orange-600 dark:text-orange-400'
-                      : currentCredits < 50
-                        ? 'text-yellow-600 dark:text-yellow-400'
-                        : 'text-green-600 dark:text-green-400'
-                }`}>
-                  {currentCredits < 5 ? '余额不足' : currentCredits < 20 ? '余额偏低' : currentCredits < 50 ? '余额充足' : '余额充裕'}
-                </span>
-              </div>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  近 3 天内几乎没有消耗，暂无法计算趋势
+                </p>
+              )}
             </div>
           </div>
         ) : (
@@ -286,7 +394,7 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
         {/* 定时重置倒计时提醒 - 仅在3分钟内显示 */}
         {/* 注意：倒计时是全局的（在 popup.tsx 中通过 useScheduledResetCountdown 统一管理） */}
         {/* PAYGO 套餐不参与定时重置，已在 hasEligibleSubscriptions 中被过滤 */}
-        {!subscription.subscriptionPlanName.includes("PAYGO") && scheduledCountdown.isImminent && (
+        {!isPaygo && scheduledCountdown.isImminent && (
           <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 px-3 py-2">
             {/* 光效背景 */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(139,92,246,0.3),rgba(255,255,255,0))]" />
@@ -307,7 +415,7 @@ export function SubscriptionCard({ subscription, onRefresh }: SubscriptionCardPr
         )}
 
         {/* 操作按钮区域 - 紧凑单行布局（PAYGO 套餐不显示） */}
-        {!subscription.subscriptionPlanName.includes("PAYGO") && (
+        {!isPaygo && (
           <div className="space-y-2 border-t pt-2">
             {/* 错误提示 */}
             {error && (

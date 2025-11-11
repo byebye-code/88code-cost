@@ -78,6 +78,17 @@ export interface DashboardData {
   recentActivity: DashboardActivity
 }
 
+export interface UsageTrendPoint {
+  date: string
+  label: string
+  requests: number
+  inputTokens: number
+  outputTokens: number
+  cacheCreateTokens: number
+  cacheReadTokens: number
+  cost: number
+}
+
 // 88Code API 响应通用结构
 export interface Code88Response<T> {
   code: number
