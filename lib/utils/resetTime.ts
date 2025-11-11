@@ -8,6 +8,7 @@
  */
 
 import type { Subscription } from "~/types"
+import { resetTimeLogger } from "./logger"
 
 // 固定的重置时间点（小时:分钟）
 const FIXED_RESET_TIMES = [
@@ -34,8 +35,8 @@ export function getNextResetTime(subscription: Subscription): Date | null {
     )
 
     if (nextReset && nextReset > now) {
-      console.log(
-        `[ResetTime] 套餐 ${subscription.subscriptionPlanName} 下次重置: ${nextReset.toLocaleString()}`
+      resetTimeLogger.info(
+        `套餐 ${subscription.subscriptionPlanName} 下次重置: ${nextReset.toLocaleString()}`
       )
       return nextReset
     }
@@ -43,8 +44,8 @@ export function getNextResetTime(subscription: Subscription): Date | null {
 
   // 策略 2: 使用固定的重置时间点（18:55 或 23:55）
   const nextFixedReset = getNextFixedResetTime(now)
-  console.log(
-    `[ResetTime] 套餐 ${subscription.subscriptionPlanName} 使用固定重置时间: ${nextFixedReset.toLocaleString()}`
+  resetTimeLogger.info(
+    `套餐 ${subscription.subscriptionPlanName} 使用固定重置时间: ${nextFixedReset.toLocaleString()}`
   )
   return nextFixedReset
 }
@@ -148,8 +149,8 @@ export function extractResetTimes(
     .map((t) => new Date(t))
     .sort((a, b) => a.getTime() - b.getTime())
 
-  console.log(
-    `[ResetTime] 提取到 ${uniqueTimes.length} 个重置时间:`,
+  resetTimeLogger.info(
+    `提取到 ${uniqueTimes.length} 个重置时间`,
     uniqueTimes.map((t) => t.toLocaleTimeString())
   )
 

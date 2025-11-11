@@ -7,6 +7,8 @@
 import { Storage } from "@plasmohq/storage"
 
 import { browserAPI } from "../browser-api"
+import { storageLogger } from "../utils/logger"
+import { cleanToken } from "../utils/token"
 
 export const storage = new Storage()
 
@@ -17,27 +19,6 @@ interface PingResponse {
 
 interface GetLocalStorageResponse {
   authToken?: string
-  tokenKey?: string
-  allLocalStorage?: Record<string, any>
-}
-
-/**
- * 清理 token 字符串，去除多余的引号和空格
- */
-function cleanToken(token: string | null | undefined): string | null {
-  if (!token) return null
-
-  let cleaned = token.trim()
-
-  // 去除外层的引号（单引号或双引号）
-  while (
-    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
-    (cleaned.startsWith("'") && cleaned.endsWith("'"))
-  ) {
-    cleaned = cleaned.slice(1, -1).trim()
-  }
-
-  return cleaned || null
 }
 
 /**
@@ -48,7 +29,7 @@ export async function hasOpenWebsiteTabs(): Promise<boolean> {
     const tabs = await browserAPI.tabs.query({ url: "https://www.88code.org/*" })
     return tabs.length > 0
   } catch (error) {
-    console.error("[Storage] 检查标签页失败:", error)
+    storageLogger.error("检查标签页失败:", error)
     return false
   }
 }
@@ -69,27 +50,24 @@ export async function getAuthToken(): Promise<string | null> {
     const hasOpenTabs = await hasOpenWebsiteTabs()
 
     if (!hasOpenTabs) {
-      console.log("[Storage] [INFO] 没有打开的 88code.org 标签页，返回 null")
-      console.log("[Storage] [TIP] 调用方应该使用缓存的 token，或引导用户登录")
       return null
     }
 
-    console.log("[Storage] 从网站 localStorage 读取 token...")
+    storageLogger.debug("尝试从网站 localStorage 读取 token")
     const websiteToken = await getTokenFromWebsite()
 
     if (websiteToken) {
       const cleanedToken = cleanToken(websiteToken)
-      console.log("[Storage] [OK] 成功从网站读取 token，同步到扩展 storage")
+      storageLogger.info("成功从网站读取 token，已同步到扩展 storage")
       // 同步到扩展 storage（供 background 等其他场景使用）
       await saveAuthToken(cleanedToken || "")
       return cleanedToken
     }
 
-    console.log("[Storage] [ERROR] 未找到 token")
-    console.log("[Storage] [TIP] 请访问并登录 88code.org，然后刷新页面")
+    storageLogger.warn("网站 localStorage 中未找到 token")
     return null
   } catch (error) {
-    console.error("[Storage] 读取 token 失败:", error)
+    storageLogger.error("读取 token 失败:", error)
     return null
   }
 }
@@ -99,7 +77,7 @@ export async function getAuthToken(): Promise<string | null> {
  */
 async function getTokenFromWebsite(): Promise<string | null> {
   try {
-    console.log("[Storage] 开始查询 88code.org 标签页...")
+    storageLogger.debug("开始查询 88code.org 标签页")
 
     // 优先查询当前活跃的 88code.org 标签页
     const activeTabs = await browserAPI.tabs.query({
@@ -108,40 +86,33 @@ async function getTokenFromWebsite(): Promise<string | null> {
       currentWindow: true
     })
 
-    console.log(`[Storage] 找到 ${activeTabs.length} 个活跃标签页`)
+    storageLogger.debug(`找到 ${activeTabs.length} 个活跃标签页`)
 
     // 如果没有活跃标签页，查询所有标签页
     const tabs = activeTabs.length > 0 ? activeTabs :
       await browserAPI.tabs.query({ url: "https://www.88code.org/*" })
 
-    console.log(`[Storage] 总共找到 ${tabs.length} 个标签页`)
+    storageLogger.debug(`总共找到 ${tabs.length} 个匹配标签页`)
 
     if (tabs.length === 0) {
-      console.warn("[Storage] 未找到 88code.org 标签页，请先访问并登录 88code.org")
+      storageLogger.warn("未找到 88code.org 标签页")
       return null
     }
 
     // 选择最合适的标签页：优先选择活跃的，然后选择第一个
     const tab = activeTabs.length > 0 ? activeTabs[0] : tabs[0]
 
-    console.log("[Storage] 选择的标签页信息:", {
-      id: tab.id,
-      url: tab.url,
-      status: tab.status,
-      title: tab.title,
-      active: tab.active,
-      windowId: tab.windowId
-    })
+    storageLogger.debug("选择的标签页 ID:", tab.id)
 
     if (!tab.id) {
-      console.error("[Storage] 标签页 ID 为空")
+      storageLogger.error("标签页 ID 为空，无法发送消息")
       return null
     }
 
     // 尝试发送消息，带重试机制
     return await sendMessageWithRetry(tab.id)
   } catch (error) {
-    console.error("[Storage] 从网站读取 token 失败:", error)
+    storageLogger.error("从网站读取 token 失败:", error)
     return null
   }
 }
@@ -151,35 +122,20 @@ async function getTokenFromWebsite(): Promise<string | null> {
  */
 async function pingContentScript(tabId: number): Promise<boolean> {
   try {
-    console.log(`[Storage] Ping 测试 content script (tabId: ${tabId})...`)
+    storageLogger.debug(`Ping content script (tabId: ${tabId})`)
     const response = await browserAPI.tabs.sendMessage(tabId, {
       action: "ping"
     }) as PingResponse
 
     if (response?.success) {
-      console.log("[Storage] [OK] Content script 响应正常:", response)
+      storageLogger.debug("Content script 响应正常")
       return true
     }
 
-    console.warn("[Storage] [WARN] Content script 响应异常:", response)
+    storageLogger.warn("Content script 响应异常")
     return false
   } catch (error: any) {
-    console.warn("[Storage] [WARN] Ping 测试失败:", error.message)
-
-    // 打印更详细的调试信息
-    console.error("[Storage] [DEBUG] 详细调试信息:")
-    console.error("  - Tab ID:", tabId)
-    console.error("  - 错误名称:", error.name)
-    console.error("  - 错误消息:", error.message)
-    console.error("  - 错误堆栈:", error.stack)
-    console.error("  - 当前时间:", new Date().toISOString())
-    console.error("  - 浏览器信息:", navigator.userAgent)
-    console.error("  - 扩展环境:", {
-      hasChrome: typeof chrome !== "undefined",
-      hasBrowser: typeof browser !== "undefined",
-      chromeRuntimeId: chrome?.runtime?.id,
-      browserRuntimeId: (typeof browser !== "undefined" && browser?.runtime?.id) || "N/A"
-    })
+    storageLogger.warn("Ping 测试失败", error)
 
     return false
   }
@@ -195,65 +151,52 @@ async function sendMessageWithRetry(
   maxRetries: number = 6,
   initialDelay: number = 200
 ): Promise<string | null> {
-  console.log(`[Storage] 准备发送消息到标签页 ${tabId}`)
+  storageLogger.debug(`准备向标签页 ${tabId} 发送消息以获取 token`)
 
   // 先进行 ping 测试，确认 content script 是否可用
   const isPingSuccess = await pingContentScript(tabId)
   if (!isPingSuccess) {
-    console.error("[Storage] [ERROR] Content script ping 测试失败")
-    console.error("[Storage] [TIP] 解决方案：请刷新 88code.org 页面后重试")
-    console.error("[Storage] 原因：页面在扩展安装/更新前已打开，content script 未注入")
+    storageLogger.error("Content script ping 测试失败，可能尚未注入")
     return null
   }
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      console.log(`[Storage] 第 ${i + 1}/${maxRetries} 次尝试发送消息...`)
+      storageLogger.debug(`第 ${i + 1}/${maxRetries} 次尝试发送消息`)
 
       // 向内容脚本发送消息，请求读取 localStorage（使用跨浏览器 API）
       const response = await browserAPI.tabs.sendMessage(tabId, {
         action: "getLocalStorage"
       }) as GetLocalStorageResponse
 
-      console.log(`[Storage] 收到响应:`, {
-        hasResponse: !!response,
-        hasToken: !!response?.authToken,
-        tokenKey: response?.tokenKey,
-        localStorageKeys: response?.allLocalStorage ? Object.keys(response.allLocalStorage).length : 0
-      })
+      storageLogger.debug(
+        `收到响应 (hasResponse=${!!response}, hasToken=${!!response?.authToken})`
+      )
 
       if (response?.authToken) {
-        console.log(`[Storage] [OK] 成功读取 token (尝试 ${i + 1}/${maxRetries})`)
+        storageLogger.info(`成功读取 token (尝试 ${i + 1}/${maxRetries})`)
         return response.authToken
       }
 
-      console.warn(`[Storage] 响应中没有 token`)
+      storageLogger.warn("响应中没有 token")
       return null
     } catch (error: any) {
       const isLastRetry = i === maxRetries - 1
 
-      console.error(`[Storage] 第 ${i + 1}/${maxRetries} 次尝试失败:`, {
-        errorMessage: error.message,
-        errorName: error.name,
-        stack: error.stack?.split('\n')[0]
-      })
+      storageLogger.error(`第 ${i + 1}/${maxRetries} 次尝试失败`, error)
 
       // 如果是连接错误且不是最后一次重试，等待后重试
       if (error.message?.includes("Receiving end does not exist") && !isLastRetry) {
         // 指数退避：每次延迟时间翻倍
         const delay = initialDelay * Math.pow(2, i)
-        console.log(`[Storage] Content script 未就绪，${delay}ms 后重试 (${i + 1}/${maxRetries})`)
+        storageLogger.warn(`Content script 未就绪，${delay}ms 后重试 (${i + 1}/${maxRetries})`)
         await new Promise(resolve => setTimeout(resolve, delay))
         continue
       }
 
       // 最后一次重试失败，或其他错误
       if (isLastRetry) {
-        console.error("[Storage] [ERROR] 从网站读取 token 失败:", error.message)
-        console.error("[Storage] 可能原因:")
-        console.error("  1. Content script 未注入到页面")
-        console.error("  2. 88code.org 页面未加载完成")
-        console.error("  3. 浏览器扩展权限不足")
+        storageLogger.error("从网站读取 token 失败", error)
       }
       return null
     }
@@ -269,7 +212,7 @@ export async function saveAuthToken(token: string): Promise<void> {
   try {
     await storage.set("authToken", token)
   } catch (error) {
-    console.error("[Storage] 保存 authToken 失败:", error)
+    storageLogger.error("保存 authToken 失败:", error)
   }
 }
 
@@ -282,7 +225,7 @@ export async function getAuthTokenFromStorage(): Promise<string | null> {
     const token = await storage.get("authToken")
     return token ? cleanToken(token as string) : null
   } catch (error) {
-    console.error("[Storage] 从 storage 读取 token 失败:", error)
+    storageLogger.error("从 storage 读取 token 失败:", error)
     return null
   }
 }
@@ -294,7 +237,7 @@ export async function clearAuthToken(): Promise<void> {
   try {
     await storage.remove("authToken")
   } catch (error) {
-    console.error("[Storage] 清除 authToken 失败:", error)
+    storageLogger.error("清除 authToken 失败:", error)
   }
 }
 
@@ -320,7 +263,7 @@ export async function setCacheData<T>(
     }
     await storage.set(key, cacheData)
   } catch (error) {
-    console.error(`[Storage] 保存缓存 ${key} 失败:`, error)
+    storageLogger.error(`保存缓存 ${key} 失败:`, error)
   }
 }
 
@@ -347,7 +290,7 @@ export async function getCacheData<T>(
 
     return cacheData.data
   } catch (error) {
-    console.error(`[Storage] 读取缓存 ${key} 失败:`, error)
+    storageLogger.error(`读取缓存 ${key} 失败:`, error)
     return null
   }
 }
@@ -359,6 +302,6 @@ export async function clearCacheData(key: string): Promise<void> {
   try {
     await storage.remove(key)
   } catch (error) {
-    console.error(`[Storage] 清除缓存 ${key} 失败:`, error)
+    storageLogger.error(`清除缓存 ${key} 失败:`, error)
   }
 }

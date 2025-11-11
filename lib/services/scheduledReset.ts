@@ -4,19 +4,12 @@
  */
 
 import type { Subscription } from "~/types"
-import { resetCredits, fetchSubscriptions } from "~/lib/api/client"
 
 // 定时重置配置
 export const RESET_TIMES = {
   FIRST: { hour: 18, minute: 55, requiredResetTimes: 2 },  // 18:55，需要 ≥2 次
   SECOND: { hour: 23, minute: 55, requiredResetTimes: 1 }  // 23:55，需要 ≥1 次
 } as const
-
-// 随机延迟范围（秒）
-const RANDOM_DELAY_RANGE = { min: 0, max: 15 }
-
-// 验证延迟时间（秒）
-const VERIFICATION_DELAY = 30
 
 /**
  * 获取今天的重置时间点
@@ -138,119 +131,4 @@ export function canReset(subscription: Subscription, requiredResetTimes: number)
   }
 
   return { canReset: true }
-}
-
-/**
- * 执行自动重置
- */
-export async function executeScheduledReset(subscription: Subscription, requiredResetTimes: number): Promise<{
-  success: boolean
-  message: string
-  verified?: boolean
-}> {
-  console.log(`[ScheduledReset] 开始执行定时重置，订阅ID: ${subscription.id}`)
-
-  // 检查重置条件
-  const checkResult = canReset(subscription, requiredResetTimes)
-  if (!checkResult.canReset) {
-    console.log(`[ScheduledReset] 不满足重置条件: ${checkResult.reason}`)
-    return { success: false, message: checkResult.reason || "不满足重置条件" }
-  }
-
-  // 随机延迟（避免服务器压力）
-  const randomDelay = Math.floor(
-    Math.random() * (RANDOM_DELAY_RANGE.max - RANDOM_DELAY_RANGE.min + 1) + RANDOM_DELAY_RANGE.min
-  )
-  console.log(`[ScheduledReset] 随机延迟 ${randomDelay} 秒`)
-  await new Promise(resolve => setTimeout(resolve, randomDelay * 1000))
-
-  // 执行重置
-  try {
-    const resetResult = await resetCredits(subscription.id)
-
-    if (!resetResult.success) {
-      console.error(`[ScheduledReset] 重置失败:`, resetResult.message)
-      return { success: false, message: resetResult.message || "重置失败" }
-    }
-
-    console.log(`[ScheduledReset] 重置成功，等待 ${VERIFICATION_DELAY} 秒后验证`)
-
-    // 延迟验证
-    await new Promise(resolve => setTimeout(resolve, VERIFICATION_DELAY * 1000))
-
-    // 验证重置结果
-    const verified = await verifyReset(subscription.id, subscription.subscriptionPlan.creditLimit)
-
-    if (!verified) {
-      console.error(`[ScheduledReset] 验证失败：重置可能未成功`)
-      return {
-        success: true, // API 调用成功
-        message: "重置请求已发送，但验证失败",
-        verified: false
-      }
-    }
-
-    console.log(`[ScheduledReset] 验证成功`)
-    return {
-      success: true,
-      message: "重置成功",
-      verified: true
-    }
-  } catch (error) {
-    console.error(`[ScheduledReset] 执行异常:`, error)
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : "未知错误"
-    }
-  }
-}
-
-/**
- * 验证重置结果
- */
-async function verifyReset(subscriptionId: number, expectedCredits: number): Promise<boolean> {
-  try {
-    const response = await fetchSubscriptions()
-
-    if (!response.success || !response.data) {
-      console.error(`[ScheduledReset] 验证失败：获取订阅信息失败`)
-      return false
-    }
-
-    const subscription = response.data.find(sub => sub.id === subscriptionId)
-
-    if (!subscription) {
-      console.error(`[ScheduledReset] 验证失败：未找到订阅`)
-      return false
-    }
-
-    // 验证逻辑：
-    // 1. 额度已满 -> 成功
-    // 2. 冷却时间重置 -> 成功
-    // 3. 额度未满 + 有重置次数 + 冷却时间为0 -> 失败
-
-    const isCreditsReset = subscription.currentCredits >= expectedCredits
-    const isCooldownActive = subscription.lastCreditReset
-      ? (Date.now() - new Date(subscription.lastCreditReset).getTime()) < 60 * 1000 // 1分钟内
-      : false
-
-    if (isCreditsReset || isCooldownActive) {
-      return true
-    }
-
-    // 检查失败条件
-    const hasResetTimes = subscription.resetTimes > 0
-    const isNotFull = subscription.currentCredits < expectedCredits
-
-    if (isNotFull && hasResetTimes && !isCooldownActive) {
-      console.error(`[ScheduledReset] 验证失败：额度未满且无冷却，重置可能失败`)
-      return false
-    }
-
-    // 其他情况认为成功（如重置次数已用完等）
-    return true
-  } catch (error) {
-    console.error(`[ScheduledReset] 验证异常:`, error)
-    return false
-  }
 }

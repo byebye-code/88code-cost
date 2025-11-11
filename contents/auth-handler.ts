@@ -18,14 +18,15 @@ export const config: PlasmoCSConfig = {
   all_frames: false
 }
 
-// 立即打印加载信息
-console.log("[Auth Handler] Content script 已加载", {
-  url: window.location.href,
-  readyState: document.readyState,
-  timestamp: new Date().toISOString(),
-  hasChrome: typeof chrome !== "undefined",
-  hasBrowser: typeof browser !== "undefined"
-})
+const isDev = process.env.NODE_ENV === "development"
+
+const logDebug = (...args: any[]) => {
+  if (isDev) {
+    console.log("[Auth Handler]", ...args)
+  }
+}
+
+logDebug("content script 已加载")
 
 /**
  * 消息处理函数
@@ -36,15 +37,11 @@ function handleMessage(
   sender: chrome.runtime.MessageSender,
   sendResponse: (response?: any) => void
 ): boolean {
-  console.log("[Auth Handler] 收到消息:", request, {
-    timestamp: new Date().toISOString(),
-    action: request.action
-  })
+  logDebug("收到消息", request?.action)
 
   try {
     // Ping 测试 - 验证 content script 是否活跃
     if (request.action === "ping") {
-      console.log("[Auth Handler] 响应 ping")
       sendResponse({
         success: true,
         message: "Content script is alive",
@@ -56,17 +53,6 @@ function handleMessage(
 
     // 读取 localStorage
     if (request.action === "getLocalStorage") {
-      console.log("[Auth Handler] 开始读取 localStorage...")
-
-      // 读取所有 localStorage 数据
-      const allLocalStorage: Record<string, string> = {}
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key) {
-          allLocalStorage[key] = localStorage.getItem(key) || ""
-        }
-      }
-
       // 查找可能的 token 字段
       const possibleTokenKeys = [
         "authToken",
@@ -81,73 +67,35 @@ function handleMessage(
       ]
 
       let foundToken: string | null = null
-      let foundKey: string | null = null
 
-      console.log("[Auth Handler] localStorage 键列表:", Object.keys(allLocalStorage))
-      console.log("[Auth Handler] localStorage 完整内容:", allLocalStorage)
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (!key) continue
 
-      // 查找可能包含 token 的键
-      for (const key of Object.keys(allLocalStorage)) {
+        const value = localStorage.getItem(key) || ""
         const lowerKey = key.toLowerCase()
+
         if (
           possibleTokenKeys.some((tokenKey) =>
             lowerKey.includes(tokenKey.toLowerCase())
           )
         ) {
-          foundToken = allLocalStorage[key]
-          foundKey = key
-          console.log(`[Auth Handler] [OK] 找到 token，键: ${foundKey}`)
-          console.log(`[Auth Handler] Token 前20个字符: ${foundToken?.substring(0, 20)}...`)
+          foundToken = value
           break
         }
       }
 
       if (!foundToken) {
-        console.warn("[Auth Handler] [WARN] 未找到 token，请检查是否已登录")
-        console.warn("[Auth Handler] 可能的原因:")
-        console.warn("  1. 用户未登录 88code.org")
-        console.warn("  2. Token 存储在其他位置（sessionStorage、cookie）")
-        console.warn("  3. Token 的键名已更改")
+        logDebug("未在 localStorage 中找到 token")
       }
 
       // 返回数据
-      const response = {
-        allLocalStorage,
-        authToken: foundToken,
-        tokenKey: foundKey
-      }
-
-      console.log("[Auth Handler] 返回响应:", {
-        hasToken: !!foundToken,
-        tokenKey: foundKey,
-        localStorageKeys: Object.keys(allLocalStorage).length
-      })
-
-      sendResponse(response)
+      sendResponse({ authToken: foundToken })
       return false // 同步响应
     }
 
-    // 读取 sessionStorage
-    if (request.action === "getSessionStorage") {
-      const allSessionStorage: Record<string, string> = {}
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i)
-        if (key) {
-          allSessionStorage[key] = sessionStorage.getItem(key) || ""
-        }
-      }
-      sendResponse({ allSessionStorage })
-      return false
-    }
-
-    // 读取 cookies
-    if (request.action === "getCookies") {
-      sendResponse({ cookies: document.cookie })
-      return false
-    }
-
     // 未知 action
-    console.warn("[Auth Handler] 未知的 action:", request.action)
+    logDebug("未知 action", request.action)
     sendResponse({ error: "Unknown action" })
     return false
 

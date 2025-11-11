@@ -79,6 +79,7 @@
 - **18:55** 智能重置策略：优先重置未满额的套餐，预留最后一次给晚间兜底
 - **23:55** 兜底重置：确保所有套餐额度不浪费
 - 浏览器后台自动执行，无需手动操作
+- Service Worker 通过 `chrome.alarms` 唤醒，确保在 MV3 环境中准时执行即使后台被挂起
 
 ### 极致体验
 - 现代化界面设计，支持深色模式
@@ -434,6 +435,11 @@ pnpm format:check
 pnpm format
 ```
 
+#### 单元测试
+```bash
+pnpm test
+```
+
 ### 项目结构
 
 ```
@@ -579,6 +585,7 @@ pnpm dev
 pnpm type-check
 pnpm lint
 pnpm format:check
+pnpm test
 ```
 
 #### 步骤 5：提交代码

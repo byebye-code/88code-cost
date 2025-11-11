@@ -12,6 +12,55 @@ import Browser from "webextension-polyfill"
  * 优先使用 webextension-polyfill，fallback 到原生 chrome API
  */
 export const browserAPI = {
+  // Alarms API
+  alarms: {
+    create: (name: string, alarmInfo: chrome.alarms.AlarmCreateInfo) => {
+      if (typeof Browser !== "undefined" && Browser.alarms) {
+        return Browser.alarms.create(name, alarmInfo)
+      }
+      if (typeof chrome !== "undefined" && chrome.alarms) {
+        chrome.alarms.create(name, alarmInfo)
+      }
+    },
+    clear: (name: string) => {
+      if (typeof Browser !== "undefined" && Browser.alarms) {
+        return Browser.alarms.clear(name)
+      }
+      if (typeof chrome !== "undefined" && chrome.alarms) {
+        return new Promise((resolve) => {
+          chrome.alarms.clear(name, (wasCleared) => resolve(wasCleared))
+        })
+      }
+      return Promise.resolve(false)
+    },
+    clearAll: () => {
+      if (typeof Browser !== "undefined" && Browser.alarms) {
+        return Browser.alarms.clearAll()
+      }
+      if (typeof chrome !== "undefined" && chrome.alarms) {
+        return new Promise((resolve) => {
+          chrome.alarms.clearAll((wasCleared) => resolve(wasCleared))
+        })
+      }
+      return Promise.resolve(false)
+    },
+    onAlarm: {
+      addListener: (callback: (alarm: chrome.alarms.Alarm) => void) => {
+        if (typeof Browser !== "undefined" && Browser.alarms) {
+          Browser.alarms.onAlarm.addListener(callback as any)
+        } else {
+          chrome.alarms.onAlarm.addListener(callback)
+        }
+      },
+      removeListener: (callback: (alarm: chrome.alarms.Alarm) => void) => {
+        if (typeof Browser !== "undefined" && Browser.alarms) {
+          Browser.alarms.onAlarm.removeListener(callback as any)
+        } else {
+          chrome.alarms.onAlarm.removeListener(callback)
+        }
+      }
+    }
+  },
   // Storage API
   storage: {
     local: {
@@ -146,6 +195,24 @@ export const browserAPI = {
           Browser.runtime.onInstalled.addListener(callback as any)
         } else {
           chrome.runtime.onInstalled.addListener(callback)
+        }
+      }
+    },
+    onStartup: {
+      addListener: (callback: () => void) => {
+        if (typeof Browser !== "undefined" && Browser.runtime) {
+          Browser.runtime.onStartup.addListener(callback as any)
+        } else if (chrome.runtime?.onStartup) {
+          chrome.runtime.onStartup.addListener(callback)
+        }
+      }
+    },
+    onSuspend: {
+      addListener: (callback: () => void) => {
+        if (typeof Browser !== "undefined" && Browser.runtime && Browser.runtime.onSuspend) {
+          Browser.runtime.onSuspend.addListener(callback as any)
+        } else if (chrome.runtime?.onSuspend) {
+          chrome.runtime.onSuspend.addListener(callback)
         }
       }
     }

@@ -16,6 +16,12 @@ pnpm dev
 
 开发服务器启动后，构建文件会生成在 `build/chrome-mv3-dev` 目录。
 
+### 运行单元测试
+
+```bash
+pnpm test
+```
+
 ### 加载扩展到浏览器
 
 1. 打开 Chrome 浏览器

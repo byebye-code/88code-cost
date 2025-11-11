@@ -19,10 +19,11 @@ import {
   fetchSubscriptions,
   resetCredits
 } from "~/lib/api/client"
+import { shouldResetSubscription } from "~/lib/services/reset-strategy"
 import { browserAPI } from "~/lib/browser-api"
 import {
   setCacheData,
-  getAuthToken as getStorageAuthToken
+  getAuthTokenFromStorage
 } from "~/lib/storage"
 import { backgroundLogger } from "~/lib/utils/logger"
 import type {
@@ -138,8 +139,40 @@ const RESET_TIMES = [
   { hour: 23, minute: 55 }
 ]
 
-// 检查间隔：每分钟
-const CHECK_INTERVAL = 60 * 1000
+const RESET_ALARM_PREFIX = "scheduledReset"
+const DAILY_MINUTES = 24 * 60
+
+function getResetAlarmName(hour: number, minute: number) {
+  return `${RESET_ALARM_PREFIX}-${hour}-${minute}`
+}
+
+function getNextExecutionTimestamp(hour: number, minute: number) {
+  const now = new Date()
+  const target = new Date(now)
+  target.setHours(hour, minute, 0, 0)
+
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1)
+  }
+
+  return target.getTime()
+}
+
+function scheduleResetAlarms() {
+  RESET_TIMES.forEach(({ hour, minute }) => {
+    const alarmName = getResetAlarmName(hour, minute)
+    const nextRun = getNextExecutionTimestamp(hour, minute)
+
+    backgroundLogger.info(
+      `注册定时闹钟 ${alarmName} -> ${new Date(nextRun).toLocaleString()}`
+    )
+
+    browserAPI.alarms.create(alarmName, {
+      when: nextRun,
+      periodInMinutes: DAILY_MINUTES
+    })
+  })
+}
 
 /**
  * 获取当前设置
@@ -161,7 +194,7 @@ async function getSettings(): Promise<AppSettings> {
  * 获取认证 Token
  */
 async function getAuthToken(): Promise<string | null> {
-  return await getStorageAuthToken()
+  return await getAuthTokenFromStorage()
 }
 
 /**
@@ -202,56 +235,6 @@ function isInExecutionWindow(hour: number, minute: number): boolean {
 }
 
 /**
- * 判断套餐是否需要重置
- */
-function shouldResetSubscription(
-  subscription: Subscription,
-  currentHour: number
-): { shouldReset: boolean; reason: string } {
-  const { currentCredits, resetTimes, subscriptionPlan } = subscription
-  const creditLimit = subscriptionPlan.creditLimit
-
-  // 1. 满额检查
-  if (currentCredits >= creditLimit) {
-    return {
-      shouldReset: false,
-      reason: `已满额 (${currentCredits}/${creditLimit})`
-    }
-  }
-
-  // 2. 没有重置次数
-  if (resetTimes <= 0) {
-    return {
-      shouldReset: false,
-      reason: `无剩余重置次数`
-    }
-  }
-
-  // 3. 根据时间段判断
-  if (currentHour === 18) {
-    // 18:55 - 智能重置策略
-    if (resetTimes <= 1) {
-      return {
-        shouldReset: false,
-        reason: `保留最后1次重置机会给晚间 (剩余${resetTimes}次)`
-      }
-    }
-    return {
-      shouldReset: true,
-      reason: `最大化利用重置窗口，剩余${resetTimes}次`
-    }
-  } else if (currentHour === 23) {
-    // 23:55 - 兜底重置策略
-    return {
-      shouldReset: true,
-      reason: `兜底重置，剩余${resetTimes}次`
-    }
-  }
-
-  return { shouldReset: false, reason: "不在执行时间窗口" }
-}
-
-/**
  * 执行重置
  */
 async function performReset(
@@ -287,17 +270,24 @@ async function performReset(
 /**
  * 执行定时重置检查
  */
-async function performScheduledResetCheck() {
+interface ScheduledResetOptions {
+  skipWindowCheck?: boolean
+  trigger?: string
+}
+
+async function performScheduledResetCheck(options: ScheduledResetOptions = {}) {
   const now = new Date()
   const currentHour = now.getHours()
   const currentMinute = now.getMinutes()
   const timeKey = `${currentHour}:${currentMinute}`
 
-  backgroundLogger.info(`定时检查 - 当前时间: ${timeKey}`)
+  backgroundLogger.info(
+    `定时检查 - 当前时间: ${timeKey} (触发: ${options.trigger ?? "unknown"})`
+  )
 
   try {
     // 1. 检查是否在执行窗口
-    if (!isInExecutionWindow(currentHour, currentMinute)) {
+    if (!options.skipWindowCheck && !isInExecutionWindow(currentHour, currentMinute)) {
       return
     }
 
@@ -391,15 +381,9 @@ async function performScheduledResetCheck() {
 function startScheduledResetService() {
   backgroundLogger.info("启动定时重置服务")
   backgroundLogger.info(`执行时间: ${RESET_TIMES.map(t => `${t.hour}:${String(t.minute).padStart(2, '0')}`).join(", ")}`)
-  backgroundLogger.info(`检查间隔: ${CHECK_INTERVAL / 1000}秒`)
 
-  // 立即执行一次检查
-  performScheduledResetCheck()
-
-  // 设置定时检查（每分钟）
-  setInterval(() => {
-    performScheduledResetCheck()
-  }, CHECK_INTERVAL)
+  scheduleResetAlarms()
+  performScheduledResetCheck({ trigger: "init" })
 }
 
 // ============ 消息监听 ============
@@ -411,6 +395,15 @@ browserAPI.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME_FETCH) {
     backgroundLogger.info("⏰ 定时器触发，执行数据获取")
     executeAllTasks()
+    return
+  }
+
+  if (alarm.name?.startsWith(RESET_ALARM_PREFIX)) {
+    backgroundLogger.info(`⏰ 定时重置闹钟触发: ${alarm.name}`)
+    performScheduledResetCheck({
+      skipWindowCheck: true,
+      trigger: alarm.name
+    })
   }
 })
 
@@ -448,6 +441,7 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
 browserAPI.runtime.onStartup.addListener(() => {
   backgroundLogger.info("扩展启动")
   startDataFetchService()
+  startScheduledResetService()
   executeAllTasks()
 })
 
@@ -457,6 +451,7 @@ browserAPI.runtime.onStartup.addListener(() => {
 browserAPI.runtime.onInstalled.addListener((details) => {
   backgroundLogger.info(`扩展${details.reason === "install" ? "首次安装" : "已更新"}`)
   startDataFetchService()
+  startScheduledResetService()
   executeAllTasks()
 })
 

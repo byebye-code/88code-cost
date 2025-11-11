@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from "react"
+import { resetLogger } from "~/lib/utils/logger"
 
 // 定义两个重置时间窗口
 const RESET_WINDOWS = [
@@ -139,9 +140,7 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
 
     // 如果已经在追踪这个时间点，跳过
     if (resetTimersRef.current.has(timeKey)) {
-      console.log(
-        `[ResetTracker] 已在追踪重置时间: ${cooldownEnd.toLocaleTimeString()}`
-      )
+      resetLogger.info(`已在追踪重置时间: ${cooldownEnd.toLocaleTimeString()}`)
       return
     }
 
@@ -149,19 +148,17 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
     const delay = cooldownEnd.getTime() - now.getTime()
 
     if (delay <= 0) {
-      console.log("[ResetTracker] 重置时间已过，立即触发重置")
+      resetLogger.info("重置时间已过，立即触发重置")
       triggerReset(timeKey)
       return
     }
 
-    console.log(
-      `[ResetTracker] 追踪重置时间: ${cooldownEnd.toLocaleTimeString()}，${Math.round(delay / 1000)} 秒后触发`
+    resetLogger.info(
+      `追踪重置时间: ${cooldownEnd.toLocaleTimeString()}，${Math.round(delay / 1000)} 秒后触发`
     )
 
     const timer = setTimeout(() => {
-      console.log(
-        `[ResetTracker] 到达重置时间: ${cooldownEnd.toLocaleTimeString()}`
-      )
+      resetLogger.info(`到达重置时间: ${cooldownEnd.toLocaleTimeString()}`)
       triggerReset(timeKey)
     }, delay)
 
@@ -176,16 +173,16 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
    * 2. 避免在所有套餐已手动重置或不符合条件时触发无效刷新
    */
   function triggerReset(timeKey: string) {
-    console.log("[ResetTracker] 到达冷却结束时间，执行预检查")
+    resetLogger.info("到达冷却结束时间，执行预检查")
 
     // 预检查：确认是否仍有符合规则的套餐需要重置
     if (!config.hasEligibleSubscriptions()) {
-      console.log("[ResetTracker] 预检查失败：无符合规则的套餐，跳过重置")
+      resetLogger.info("预检查失败：无符合规则的套餐，跳过重置")
       resetTimersRef.current.delete(timeKey)
       return
     }
 
-    console.log("[ResetTracker] 预检查通过，触发重置")
+    resetLogger.info("预检查通过，触发重置")
     config.onResetTriggered()
     // 清理定时器
     resetTimersRef.current.delete(timeKey)
@@ -217,32 +214,32 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
         lastWindowStartTimeRef.current = currentWindowTime
         windowStartRefreshDoneRef.current = false
 
-        console.log("[ResetTracker] 进入重置窗口，检查是否有符合规则的套餐")
+        resetLogger.info("进入重置窗口，检查是否有符合规则的套餐")
 
         // 检查是否有符合规则的套餐（非PAYGO、活跃中）
         if (config.hasEligibleSubscriptions()) {
           // 随机延迟 0-15 秒
           const randomDelay = Math.floor(Math.random() * 15 * 1000)
-          console.log(
-            `[ResetTracker] 检测到符合规则的套餐，将在 ${randomDelay / 1000} 秒后执行统一刷新`
+          resetLogger.info(
+            `检测到符合规则的套餐，将在 ${randomDelay / 1000} 秒后执行统一刷新`
           )
 
           setTimeout(async () => {
-            console.log("[ResetTracker] 执行窗口开始的统一刷新")
+            resetLogger.info("执行窗口开始的统一刷新")
             try {
               await config.onWindowStartRefresh()
               windowStartRefreshDoneRef.current = true
-              console.log("[ResetTracker] 窗口统一刷新完成，继续追踪剩余冷却时间")
+              resetLogger.info("窗口统一刷新完成，继续追踪剩余冷却时间")
 
               // 刷新后，重新检查并追踪剩余的冷却时间
               scheduleRemainingCooldowns()
             } catch (error) {
-              console.error("[ResetTracker] 窗口刷新失败:", error)
+              resetLogger.error("窗口刷新失败:", error)
               windowStartRefreshDoneRef.current = true
             }
           }, randomDelay)
         } else {
-          console.log("[ResetTracker] 无符合规则的套餐，跳过窗口统一刷新")
+          resetLogger.info("无符合规则的套餐，跳过窗口统一刷新")
           windowStartRefreshDoneRef.current = true
         }
       }
@@ -250,7 +247,7 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
 
     // 在窗口内且已完成窗口开始刷新，追踪冷却时间
     if (inWindow && windowStartRefreshDoneRef.current && config.cooldownEndTimes) {
-      console.log("[ResetTracker] 追踪窗口内的冷却时间")
+      resetLogger.info("追踪窗口内的冷却时间")
       config.cooldownEndTimes.forEach((cooldownEnd) => {
         if (isCooldownInCurrentWindow(cooldownEnd, now)) {
           trackResetTime(cooldownEnd, now)
@@ -260,7 +257,7 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
 
     // 退出窗口时，重置标记
     if (!inWindow && wasInWindow) {
-      console.log("[ResetTracker] 退出重置窗口")
+      resetLogger.info("退出重置窗口")
       windowStartRefreshDoneRef.current = false
       // 清理所有冷却追踪定时器
       resetTimersRef.current.forEach((timer) => clearTimeout(timer))
@@ -285,7 +282,7 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
     if (!config.cooldownEndTimes) return
 
     const now = new Date()
-    console.log("[ResetTracker] 调度剩余冷却时间")
+    resetLogger.info("调度剩余冷却时间")
 
     config.cooldownEndTimes.forEach((cooldownEnd) => {
       if (isCooldownInCurrentWindow(cooldownEnd, now)) {
@@ -300,7 +297,7 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
   // 启动窗口检查
   useEffect(() => {
     if (!config.enabled) {
-      console.log("[ResetTracker] 窗口追踪已禁用")
+      resetLogger.info("窗口追踪已禁用")
       return
     }
 
@@ -315,7 +312,7 @@ export function useResetWindowTracker(config: ResetWindowTrackerConfig) {
     }
 
     prevCooldownTimesRef.current = currentTimesKey
-    console.log("[ResetTracker] 启动重置窗口追踪")
+    resetLogger.info("启动重置窗口追踪")
     checkWindowAndTrackResets()
 
     return () => {
